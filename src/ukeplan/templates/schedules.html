@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="no" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <title x-text="t('page_title')">Timeplaner – Ukeplan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body class="p-6 max-w-4xl mx-auto font-sans" x-data="schedulesApp()" x-init="init()">
+
+  <div class="mb-8 flex items-center justify-between flex-wrap gap-3">
+    <a href="/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
+      ← <span x-text="t('back')">Tilbake til Ukeplan</span>
+    </a>
+    <div class="flex items-center gap-3">
+      <div class="inline-flex rounded-lg bg-slate-700/60 p-0.5 border border-slate-600/50 text-xs">
+        <button @click="setLanguage('en')" :class="lang === 'en' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300 hover:text-white'" class="px-2 py-1 rounded-md transition text-[11px]">
+          EN
+        </button>
+        <button @click="setLanguage('no')" :class="lang === 'no' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300 hover:text-white'" class="px-2 py-1 rounded-md transition text-[11px]">
+          NO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <h1 class="text-3xl font-extrabold text-white mb-2" x-text="t('title')">Timeplaner</h1>
+  <p class="text-slate-300 text-sm mb-6 leading-relaxed" x-text="t('intro')">Én stående skoletidsplan per barn. Last opp en ny for å erstatte den gamle.</p>
+
+  <!-- Upload / replace form -->
+  <form @submit.prevent="uploadSchedule()"
+        class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 mb-8 shadow">
+    <p class="text-sm font-semibold text-white mb-3" x-text="t('upload_title')">Last opp / erstatt skoletidsplan</p>
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="flex-1 min-w-[160px]">
+        <label class="block text-[11px] text-slate-400 mb-1" x-text="t('person_label')">Barn</label>
+        <select x-model="uploadPerson" required
+                class="w-full bg-slate-700 border border-slate-600 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="" disabled x-text="t('pick_person')">Velg barn…</option>
+          <template x-for="m in familyMembers" :key="m.name">
+            <option :value="m.name" x-text="formatMember(m)"></option>
+          </template>
+        </select>
+      </div>
+      <div class="w-28">
+        <label class="block text-[11px] text-slate-400 mb-1" x-text="t('year_label')">År (valgfritt)</label>
+        <input type="number" min="2000" max="2100" x-model="uploadYear" :placeholder="t('year_ph')"
+               class="w-full bg-slate-700 border border-slate-600 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div class="flex-1 min-w-[200px]">
+        <label class="block text-[11px] text-slate-400 mb-1" x-text="t('file_label')">Timetable (PDF)</label>
+        <input type="file" accept=".pdf,application/pdf" x-ref="fileInput" required
+               class="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-600 file:text-slate-100 file:font-semibold file:text-xs hover:file:bg-slate-500 focus:file:ring-2 file:ring-blue-500">
+      </div>
+      <button type="submit" :disabled="uploading"
+              class="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-xs font-semibold transition">
+        <span x-text="uploading ? t('uploading') : t('upload_btn')">Last opp</span>
+      </button>
+    </div>
+    <div x-show="uploadError" class="mt-3 text-xs text-red-300 bg-red-900/30 border border-red-800/50 rounded-lg px-3 py-2" x-cloak x-text="uploadError"></div>
+    <div x-show="uploadOk" class="mt-3 text-xs text-emerald-300 bg-emerald-900/30 border border-emerald-800/50 rounded-lg px-3 py-2" x-cloak x-text="uploadOk"></div>
+  </form>
+
+  <!-- Status -->
+  <div x-show="loading" class="text-slate-400 text-sm mb-4" x-text="t('loading')">Laster…</div>
+  <div x-show="!loading && schedules.length === 0"
+       class="bg-slate-800/60 border border-slate-700 rounded-2xl p-10 text-center text-slate-400 text-sm mb-4"
+       x-text="t('empty')">Ingen skoletidsplaner ennå. Last opp en PDF over.</div>
+
+  <!-- Timeplaner: inline PDF with metadata and delete below -->
+  <div class="flex flex-col gap-8 pb-10">
+    <template x-for="s in schedules" :key="s.id">
+      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl overflow-hidden shadow">
+        <!-- Inline PDF (browser built-in viewer) -->
+        <iframe :src="fileUrl(s)" :title="s.filename" type="application/pdf"
+                class="w-full h-[700px] bg-slate-900/80"></iframe>
+
+        <div class="p-4 flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-white truncate" x-text="s.filename" :title="s.filename"></p>
+            <p class="text-[11px] text-slate-400" x-text="formatDate(s.updated_at) + ' · ' + formatSize(s.size_bytes)"></p>
+            <div class="flex flex-wrap gap-1.5 mt-1.5">
+              <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-900/60 text-blue-200 border border-blue-700/50" x-text="s.person"></span>
+              <span x-show="s.year" class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-900/60 text-emerald-200 border border-emerald-700/50" x-text="yearLabel(s)"></span>
+            </div>
+          </div>
+          <button @click="removeSchedule(s)" class="flex items-center justify-center gap-1.5 bg-red-900/60 hover:bg-red-800 border border-red-800/60 text-red-200 rounded-lg px-3 py-1.5 text-xs font-semibold transition shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <span x-text="t('remove')">Slett</span>
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <script>
+    const scheduleTranslations = {
+      en: {
+        page_title: "School schedules – Week Planner",
+        back: "Back to Week Planner",
+        title: "School schedules",
+        intro: "One standing timetable per child. Upload a new one to replace the previous.",
+        upload_title: "Upload / replace schedule",
+        person_label: "Child",
+        pick_person: "Choose a child…",
+        year_label: "Year (optional)",
+        year_ph: "2026",
+        file_label: "Timetable (PDF)",
+        upload_btn: "Upload",
+        uploading: "Uploading…",
+        upload_ok: "Saved.",
+        loading: "Loading…",
+        empty: "No schedules yet. Upload a PDF above.",
+        remove: "Delete",
+        confirm_remove: "Delete schedule",
+        upload_error: "Upload failed (error saving schedule)"
+      },
+      no: {
+        page_title: "Timeplaner – Ukeplan",
+        back: "Tilbake til Ukeplan",
+        title: "Timeplaner",
+        intro: "Én stående skoletidsplan per barn. Last opp en ny for å erstatte den gamle.",
+        upload_title: "Last opp / erstatt skoletidsplan",
+        person_label: "Barn",
+        pick_person: "Velg barn…",
+        year_label: "År (valgfritt)",
+        year_ph: "2026",
+        file_label: "Timetabell (PDF)",
+        upload_btn: "Last opp",
+        uploading: "Laster opp…",
+        upload_ok: "Lagret.",
+        loading: "Laster…",
+        empty: "Ingen skoletidsplaner ennå. Last opp en PDF over.",
+        remove: "Slett",
+        confirm_remove: "Slette skoletidsplan",
+        upload_error: "Opplasting feilet (feil ved lagring av skoletidsplan)"
+      }
+    };
+
+    function schedulesApp() {
+      return {
+        lang: localStorage.getItem('ukeplan_lang') || 'no',
+        familyMembers: {{ family_members | tojson }},
+        schedules: [],
+        loading: false,
+        uploading: false,
+        uploadPerson: '',
+        uploadYear: '',
+        uploadError: '',
+        uploadOk: '',
+
+        init() {
+          this.loadSchedules();
+        },
+
+        t(key) {
+          return (scheduleTranslations[this.lang] && scheduleTranslations[this.lang][key]) || scheduleTranslations['en'][key] || key;
+        },
+
+        setLanguage(l) {
+          this.lang = l;
+          localStorage.setItem('ukeplan_lang', l);
+        },
+
+        formatMember(m) {
+          return m.name + (m.school_class ? ' (' + m.school_class + ')' : '');
+        },
+
+        yearLabel(s) {
+          return (this.lang === 'no' ? 'År ' : 'Year ') + s.year;
+        },
+
+        formatDate(iso) {
+          return new Date(iso).toLocaleDateString(this.lang === 'no' ? 'nb-NO' : 'en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+          });
+        },
+
+        formatSize(b) {
+          if (b < 1024) return b + ' B';
+          if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
+          return (b / 1024 / 1024).toFixed(1) + ' MB';
+        },
+
+        fileUrl(s) {
+          return '/api/schedules/' + s.id + '/file';
+        },
+
+        async loadSchedules() {
+          this.loading = true;
+          try {
+            const res = await fetch('/api/schedules');
+            this.schedules = await res.json();
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async uploadSchedule() {
+          const fileEl = this.$refs.fileInput;
+          const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+          if (!this.uploadPerson) { this.uploadError = this.t('pick_person'); return; }
+          if (!file) { this.uploadError = this.t('file_label'); return; }
+          const form = new FormData();
+          form.append('file', file);
+          form.append('person', this.uploadPerson);
+          if (this.uploadYear !== '' && this.uploadYear !== null) {
+            form.append('year', String(this.uploadYear));
+          }
+          this.uploading = true;
+          this.uploadError = '';
+          this.uploadOk = '';
+          try {
+            const res = await fetch('/api/schedules', { method: 'POST', body: form });
+            if (!res.ok) {
+              throw new Error('HTTP ' + res.status);
+            }
+            this.uploadOk = this.t('upload_ok');
+            fileEl.value = '';
+            this.uploadYear = '';
+            await this.loadSchedules();
+          } catch (e) {
+            this.uploadError = this.t('upload_error');
+          } finally {
+            this.uploading = false;
+          }
+        },
+
+        async removeSchedule(s) {
+          if (!confirm(this.t('confirm_remove') + ': ' + s.filename + '?')) return;
+          const res = await fetch('/api/schedules/' + s.id, { method: 'DELETE' });
+          if (res.ok) {
+            this.schedules = this.schedules.filter(x => x.id !== s.id);
+          } else {
+            alert(this.t('upload_error'));
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="no" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title x-text="t('app_title')">Ukeplan for familien</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js CDN -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* iOS touch tap highlight prevention */
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased select-none" x-data="weekPlannerApp()" x-init="init()">
+
+  <!-- Top Header / Navigation -->
+  <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700/60 sticky top-0 z-30 px-3 py-2.5 sm:px-6 sm:py-3">
+    <div class="flex items-center justify-between gap-3 max-w-7xl mx-auto flex-wrap">
+      
+      <!-- Title & Week Info -->
+      <div class="flex items-center gap-2.5">
+        <div class="bg-blue-600 text-white p-1.5 sm:p-2 rounded-xl shadow-lg shadow-blue-500/20 shrink-0">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            <span class="truncate" x-text="t('app_title')"></span>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0" x-text="t('week_label') + ' ' + currentWeekNumber"></span>
+          </h1>
+          <p class="text-[11px] text-slate-400" x-text="weekDateRangeString"></p>
+        </div>
+      </div>
+
+      <!-- Navigation & View Toggles -->
+      <div class="flex items-center gap-2 ml-auto sm:ml-0">
+        <!-- Week navigation -->
+        <div class="flex items-center bg-slate-700/60 rounded-lg p-0.5 border border-slate-600/50">
+          <button @click="previousWeek()" class="p-1 sm:p-1.5 hover:bg-slate-600 rounded-md text-slate-300 transition" :title="t('prev_week')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+          </button>
+          <button @click="currentWeek()" class="px-2 sm:px-3 py-1 text-xs font-medium text-slate-200 hover:text-white transition" x-text="t('today')">
+            Today
+          </button>
+          <button @click="nextWeek()" class="p-1 sm:p-1.5 hover:bg-slate-600 rounded-md text-slate-300 transition" :title="t('next_week')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+          </button>
+        </div>
+
+        <!-- Mobile View Mode Toggle (Day vs 7-Day Grid) -->
+        <div class="md:hidden flex items-center bg-slate-700/60 rounded-lg p-0.5 border border-slate-600/50 text-[11px]">
+          <button @click="mobileViewMode = 'day'" :class="mobileViewMode === 'day' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300'" class="px-2 py-1 rounded-md transition">
+            <span x-text="t('view_day')">Day</span>
+          </button>
+          <button @click="mobileViewMode = 'week'" :class="mobileViewMode === 'week' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300'" class="px-2 py-1 rounded-md transition">
+            <span x-text="t('view_week')">Week</span>
+          </button>
+        </div>
+
+        <!-- Language Switcher (EN / NO) -->
+        <div class="inline-flex rounded-lg bg-slate-700/60 p-0.5 border border-slate-600/50 text-xs">
+          <button @click="setLanguage('en')" :class="lang === 'en' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300 hover:text-white'" class="px-2 py-1 rounded-md transition text-[11px]">
+            EN
+          </button>
+          <button @click="setLanguage('no')" :class="lang === 'no' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300 hover:text-white'" class="px-2 py-1 rounded-md transition text-[11px]">
+            NO
+          </button>
+        </div>
+
+        <!-- Settings menu (danger zone) -->
+        <div class="relative">
+          <button @click="showSettingsMenu = !showSettingsMenu" class="p-1.5 hover:bg-slate-600 rounded-md text-slate-300 transition" :title="t('settings')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          </button>
+          <div x-show="showSettingsMenu" x-cloak @click.outside="showSettingsMenu = false" class="absolute right-0 top-full mt-1.5 w-60 bg-slate-800 border border-slate-600 rounded-xl shadow-xl shadow-black/40 p-1.5 z-40">
+            <p class="px-2.5 py-1.5 text-[10px] uppercase tracking-wide font-semibold text-slate-500" x-text="t('settings')"></p>
+            <button @click="confirmClearWeek()" class="w-full text-left px-2.5 py-2 rounded-lg hover:bg-rose-900/40 text-rose-300 hover:text-rose-200 text-xs font-semibold flex items-center gap-2 transition">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <span x-text="t('clear_week')"></span>
+            </button>
+            <button @click="confirmClearAll()" class="w-full text-left px-2.5 py-2 rounded-lg hover:bg-rose-900/40 text-rose-300 hover:text-rose-200 text-xs font-semibold flex items-center gap-2 transition">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              <span x-text="t('clear_all')"></span>
+            </button>
+          </div>
+      </div>
+
+      <!-- Actions & Filters -->
+      <div class="w-full sm:w-auto flex items-center gap-2 justify-between sm:justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-700/50">
+        <!-- Filter by person -->
+        <select x-model="selectedPerson" @change="loadItems()" class="flex-1 sm:flex-initial bg-slate-700 border border-slate-600 text-xs rounded-lg px-2 py-1.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="" x-text="t('all_members')">All Family Members</option>
+          <template x-for="p in familyMembers" :key="p.id || p.name || p">
+            <option :value="p.name || p" x-text="formatMemberDisplay(p)"></option>
+          </template>
+        </select>
+
+        <!-- Family / Kids Settings Button -->
+        <button @click="openFamilyModal()" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('manage_family')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          <span class="hidden sm:inline" x-text="t('family_kids')">Family / Kids</span>
+        </button>
+
+        <!-- Documents Button -->
+        <a href="/documents" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('documents_title')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+          <span class="hidden sm:inline" x-text="t('documents_btn')">Documents</span>
+        </a>
+
+        <!-- Schedules Button -->
+        <a href="/schedules" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('schedules_title')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+          <span class="hidden sm:inline" x-text="t('schedules_btn')">Schedules</span>
+        </a>
+
+        <!-- Upload Button -->
+        <button @click="showUploadModal = true" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg shadow transition shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+          <span class="hidden sm:inline" x-text="t('upload_schedule')">Upload Schedule</span>
+          <span class="sm:hidden" x-text="t('upload_short')">Upload</span>
+        </button>
+
+        <!-- New Item Button -->
+        <button @click="openNewItemModal()" class="flex items-center gap-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          <span x-text="t('new_item')">New</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Command Bar: ask the AI to add items to the plan -->
+  <div class="bg-slate-800/60 border-b border-slate-700/60 px-3 sm:px-6 py-2">
+    <div class="max-w-7xl mx-auto flex items-center gap-2 bg-slate-900/60 border border-slate-600/60 rounded-xl px-3 py-2 shadow-sm focus-within:border-blue-500/70 focus-within:ring-1 focus-within:ring-blue-500/40 transition">
+      <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+      <input type="text" x-model="commandText" @keyup.enter="sendCommand()" :disabled="commandSending" :placeholder="t('command_ph')"
+             class="flex-1 min-w-0 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none disabled:opacity-50">
+      <span x-show="commandStatus" x-text="commandStatus" class="hidden md:inline text-[11px] text-slate-400 truncate max-w-[45%]"></span>
+      <button @click="sendCommand()" :disabled="commandSending || !commandText.trim()"
+              class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shrink-0">
+        <svg x-show="!commandSending" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+        <svg x-show="commandSending" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+        <span x-text="commandSending ? t('command_sending') : t('command_send')"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Pack for Tomorrow quick reminder banner -->
+  <div x-show="tomorrowGear.length > 0" class="bg-amber-950/40 border-b border-amber-600/30 px-3 py-2 sm:px-6">
+    <div class="max-w-7xl mx-auto flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2 text-amber-200 overflow-hidden">
+        <span class="text-base shrink-0">🎒</span>
+        <span class="font-semibold shrink-0" x-text="t('pack_for_tomorrow') + ':'">Pack for tomorrow:</span>
+        <span class="text-amber-300 font-medium truncate" x-text="tomorrowGear.map(g => (g.person ? '[' + g.person + '] ' : '') + g.title).join(' • ')"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Day Selector Bar (Visible on phones when in 'day' view) -->
+  <div class="md:hidden bg-slate-800/60 border-b border-slate-700/60 px-2 py-1.5 overflow-x-auto no-scrollbar flex items-center gap-1.5" x-show="mobileViewMode === 'day'">
+    <template x-for="(d, i) in weekDays" :key="d.dateString">
+      <button @click="selectedDayIndex = i"
+              :class="selectedDayIndex === i ? 'bg-blue-600 text-white font-bold' : (isToday(d.dateString) ? 'bg-blue-950 text-blue-300 border border-blue-600/50' : 'bg-slate-700/60 text-slate-300')"
+              class="px-2.5 py-1 rounded-lg text-xs shrink-0 flex flex-col items-center">
+        <span class="text-[10px] uppercase font-semibold" x-text="d.dayName.substring(0, 3)"></span>
+        <span class="text-xs" x-text="d.displayDate.split(' ')[0]"></span>
+      </button>
+    </template>
+  </div>
+
+  <!-- Main Content Area: Responsive Layout -->
+  <main class="flex-1 overflow-y-auto p-3 sm:p-6">
+    <div class="max-w-7xl mx-auto h-full">
+      
+      <!-- DESKTOP / TABLET: Full 7-column Week Grid -->
+      <div class="hidden md:grid md:grid-cols-7 gap-3 h-full">
+        <template x-for="(day, index) in weekDays" :key="day.dateString">
+          <div class="flex flex-col rounded-xl bg-slate-800/70 border border-slate-700/60 p-3 shadow-sm"
+               :class="{'ring-2 ring-blue-500/80 bg-slate-800': isToday(day.dateString)}">
+            
+            <!-- Day Header -->
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-700/50">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400" x-text="day.dayName"></p>
+                <p class="text-lg font-bold" :class="isToday(day.dateString) ? 'text-blue-400' : 'text-slate-200'" x-text="day.displayDate"></p>
+              </div>
+              <button @click="openNewItemModal(day.dateString)" class="text-slate-500 hover:text-slate-300 p-1" :title="t('add_item_day')">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              </button>
+            </div>
+
+            <!-- Items Container -->
+            <div class="flex-1 space-y-2 overflow-y-auto no-scrollbar">
+              
+              <!-- Section: Gear -->
+              <template x-if="getItemsForDayAndType(day.dateString, 'gear').length > 0">
+                <div class="space-y-1.5">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1" x-text="'🎒 ' + t('type_gear_heading')"></span>
+                  <template x-for="item in getItemsForDayAndType(day.dateString, 'gear')" :key="item.id">
+                    <div class="group relative bg-amber-950/30 border border-amber-800/40 rounded-lg p-2 text-xs hover:border-amber-700/70 transition cursor-pointer" @click="editItem(item)">
+                      <div class="flex items-start gap-1.5">
+                        <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-amber-500 focus:ring-amber-500">
+                        <div class="flex-1 min-w-0">
+                          <p class="font-medium text-amber-100 text-xs truncate" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
+                          <template x-if="item.person">
+                            <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-900/60 text-amber-300">
+                              <span x-text="item.person"></span>
+                              <template x-if="getPersonClass(item.person)">
+                                <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(item.person)"></span>
+                              </template>
+                            </span>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Section: Events -->
+              <template x-if="getItemsForDayAndType(day.dateString, 'event').length > 0">
+                <div class="space-y-1.5 pt-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1" x-text="'📅 ' + t('type_event_heading')"></span>
+                  <template x-for="item in getItemsForDayAndType(day.dateString, 'event')" :key="item.id">
+                    <div class="group relative bg-blue-950/30 border border-blue-800/40 rounded-lg p-2 text-xs hover:border-blue-700/70 transition cursor-pointer" @click="editItem(item)">
+                      <button @click.stop="deleteItemDirect(item.id)" class="absolute top-1 right-1 p-0.5 rounded text-slate-500 hover:text-rose-300 hover:bg-slate-700/60 opacity-0 group-hover:opacity-100 transition" :title="t('delete')">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      </button>
+                      <div class="flex items-baseline justify-between gap-1">
+                        <p class="font-semibold text-blue-100 truncate" x-text="item.title"></p>
+                        <span class="text-[10px] text-blue-300 font-mono" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
+                      </div>
+                      <div class="flex items-center gap-1 mt-1 flex-wrap">
+                        <template x-if="item.person">
+                          <span class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300">
+                            <span x-text="item.person"></span>
+                            <template x-if="getPersonClass(item.person)">
+                              <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(item.person)"></span>
+                            </template>
+                          </span>
+                        </template>
+                        <template x-if="item.recurring_weekly">
+                          <span class="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-800/60 text-blue-200 border border-blue-600/50" x-text="'↻ ' + t('weekly')"></span>
+                        </template>
+                        <template x-if="item.location">
+                          <span class="text-[10px] text-slate-400 truncate" x-text="'📍 ' + item.location"></span>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Section: Tasks -->
+              <template x-if="getItemsForDayAndType(day.dateString, 'task').length > 0">
+                <div class="space-y-1.5 pt-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1" x-text="'📝 ' + t('type_task_heading')"></span>
+                  <template x-for="item in getItemsForDayAndType(day.dateString, 'task')" :key="item.id">
+                    <div class="bg-emerald-950/30 border border-emerald-800/40 rounded-lg p-2 text-xs hover:border-emerald-700/70 transition cursor-pointer" @click="editItem(item)">
+                      <div class="flex items-start gap-1.5">
+                        <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500">
+                        <div class="flex-1 min-w-0">
+                          <p class="font-medium text-emerald-100 text-xs truncate" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
+                          <template x-if="item.person">
+                            <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300">
+                              <span x-text="item.person"></span>
+                              <template x-if="getPersonClass(item.person)">
+                                <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(item.person)"></span>
+                              </template>
+                            </span>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Section: Notes -->
+              <template x-if="getItemsForDayAndType(day.dateString, 'note').length > 0">
+                <div class="space-y-1.5 pt-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1" x-text="'📌 ' + t('type_note_heading')"></span>
+                  <template x-for="item in getItemsForDayAndType(day.dateString, 'note')" :key="item.id">
+                    <div class="bg-purple-950/30 border border-purple-800/40 rounded-lg p-2 text-xs hover:border-purple-700/70 transition cursor-pointer" @click="editItem(item)">
+                      <p class="font-medium text-purple-200 text-xs" x-text="item.title"></p>
+                      <template x-if="item.person">
+                        <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-300">
+                          <span x-text="item.person"></span>
+                          <template x-if="getPersonClass(item.person)">
+                            <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(item.person)"></span>
+                          </template>
+                        </span>
+                      </template>
+                      <p class="text-[11px] text-slate-400 mt-0.5" x-show="item.description" x-text="item.description"></p>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Empty state -->
+              <template x-if="getItemsForDay(day.dateString).length === 0">
+                <div class="h-24 flex items-center justify-center border border-dashed border-slate-700/60 rounded-lg text-slate-500 text-xs" x-text="t('no_items')">
+                  No items
+                </div>
+              </template>
+
+            </div>
+
+          </div>
+        </template>
+      </div>
+
+      <!-- MOBILE: Focus Day Card (Default on mobile) -->
+      <div class="md:hidden" x-show="mobileViewMode === 'day' && currentMobileDay">
+        <div class="rounded-2xl bg-slate-800/90 border border-slate-700/80 p-4 shadow-xl">
+          <!-- Day Header -->
+          <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/60">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400" x-text="currentMobileDay.dayName"></p>
+              <p class="text-2xl font-bold" :class="isToday(currentMobileDay.dateString) ? 'text-blue-400' : 'text-slate-100'" x-text="currentMobileDay.displayDate"></p>
+            </div>
+            <button @click="openNewItemModal(currentMobileDay.dateString)" class="flex items-center gap-1 bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              <span x-text="t('new_item')">Add</span>
+            </button>
+          </div>
+
+          <!-- Day Sections -->
+          <div class="space-y-4">
+            
+            <!-- Gear -->
+            <div x-show="getItemsForDayAndType(currentMobileDay.dateString, 'gear').length > 0" class="space-y-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5" x-text="'🎒 ' + t('type_gear_heading')"></h3>
+              <div class="space-y-1.5">
+                <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'gear')" :key="item.id">
+                  <div class="bg-amber-950/40 border border-amber-800/50 rounded-xl p-3 text-sm flex items-start gap-3 active:bg-amber-900/40" @click="editItem(item)">
+                    <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-1 w-5 h-5 rounded border-slate-600 text-amber-500 focus:ring-amber-500 shrink-0">
+                    <div class="flex-1 min-w-0">
+                      <p class="font-medium text-amber-100" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
+                      <p class="text-xs text-slate-400 mt-0.5" x-show="item.description" x-text="item.description"></p>
+                      <template x-if="item.person">
+                        <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-900/70 text-amber-300">
+                          <span x-text="item.person"></span>
+                          <template x-if="getPersonClass(item.person)">
+                            <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(item.person)"></span>
+                          </template>
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Events -->
+            <div x-show="getItemsForDayAndType(currentMobileDay.dateString, 'event').length > 0" class="space-y-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5" x-text="'📅 ' + t('type_event_heading')"></h3>
+              <div class="space-y-1.5">
+                <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'event')" :key="item.id">
+                  <div class="relative bg-blue-950/40 border border-blue-800/50 rounded-xl p-3 text-sm active:bg-blue-900/40" @click="editItem(item)">
+                    <button @click.stop="deleteItemDirect(item.id)" class="absolute top-1.5 right-1.5 p-1 rounded text-slate-500 active:text-rose-300" :title="t('delete')">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                    <div class="flex items-baseline justify-between gap-2">
+                      <p class="font-semibold text-blue-100" x-text="item.title"></p>
+                      <span class="text-xs text-blue-300 font-mono font-semibold" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
+                    </div>
+                    <p class="text-xs text-slate-300 mt-0.5" x-show="item.description" x-text="item.description"></p>
+                    <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <template x-if="item.person">
+                        <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-900/70 text-blue-300">
+                          <span x-text="item.person"></span>
+                          <template x-if="getPersonClass(item.person)">
+                            <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(item.person)"></span>
+                          </template>
+                        </span>
+                      </template>
+                      <template x-if="item.recurring_weekly">
+                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-800/60 text-blue-200 border border-blue-600/50" x-text="'↻ ' + t('weekly')"></span>
+                      </template>
+                      <template x-if="item.location">
+                        <span class="text-xs text-slate-400" x-text="'📍 ' + item.location"></span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Tasks -->
+            <div x-show="getItemsForDayAndType(currentMobileDay.dateString, 'task').length > 0" class="space-y-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5" x-text="'📝 ' + t('type_task_heading')"></h3>
+              <div class="space-y-1.5">
+                <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'task')" :key="item.id">
+                  <div class="bg-emerald-950/40 border border-emerald-800/50 rounded-xl p-3 text-sm flex items-start gap-3 active:bg-emerald-900/40" @click="editItem(item)">
+                    <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-1 w-5 h-5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500 shrink-0">
+                    <div class="flex-1 min-w-0">
+                      <p class="font-medium text-emerald-100" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
+                      <template x-if="item.person">
+                        <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-900/70 text-emerald-300">
+                          <span x-text="item.person"></span>
+                          <template x-if="getPersonClass(item.person)">
+                            <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(item.person)"></span>
+                          </template>
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div x-show="getItemsForDayAndType(currentMobileDay.dateString, 'note').length > 0" class="space-y-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5" x-text="'📌 ' + t('type_note_heading')"></h3>
+              <div class="space-y-1.5">
+                <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'note')" :key="item.id">
+                  <div class="bg-purple-950/40 border border-purple-800/50 rounded-xl p-3 text-sm active:bg-purple-900/40" @click="editItem(item)">
+                    <p class="font-medium text-purple-200" x-text="item.title"></p>
+                    <template x-if="item.person">
+                      <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-900/70 text-purple-300">
+                        <span x-text="item.person"></span>
+                        <template x-if="getPersonClass(item.person)">
+                          <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(item.person)"></span>
+                        </template>
+                      </span>
+                    </template>
+                    <p class="text-xs text-slate-400 mt-1" x-show="item.description" x-text="item.description"></p>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Empty day state -->
+            <div x-show="getItemsForDay(currentMobileDay.dateString).length === 0" class="h-36 flex flex-col items-center justify-center border border-dashed border-slate-700/60 rounded-xl text-slate-500 text-sm gap-1">
+              <span class="text-2xl">☕</span>
+              <span x-text="t('no_items')">No items planned for this day</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- MOBILE: Week List Mode (Shows all 7 days stacked) -->
+      <div class="md:hidden space-y-3" x-show="mobileViewMode === 'week'">
+        <template x-for="(day, index) in weekDays" :key="day.dateString">
+          <div class="rounded-xl bg-slate-800/80 border border-slate-700/60 p-3" :class="{'ring-2 ring-blue-500': isToday(day.dateString)}">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-700/50">
+              <div class="flex items-baseline gap-2">
+                <span class="font-bold text-sm" :class="isToday(day.dateString) ? 'text-blue-400' : 'text-slate-100'" x-text="day.dayName"></span>
+                <span class="text-xs text-slate-400" x-text="day.displayDate"></span>
+              </div>
+              <button @click="openNewItemModal(day.dateString)" class="text-slate-400 hover:text-white p-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              </button>
+            </div>
+              <template x-for="item in getItemsForDay(day.dateString)" :key="item.id">
+                <div class="p-2 rounded-lg text-xs flex items-center justify-between gap-2"
+                     :class="item.item_type === 'gear' ? 'bg-amber-950/30 border border-amber-800/40 text-amber-200' : (item.item_type === 'event' ? 'bg-blue-950/30 border border-blue-800/40 text-blue-200' : 'bg-slate-700/40 border border-slate-600/40 text-slate-200')"
+                     @click="editItem(item)">
+                  <div class="flex items-center gap-2 truncate">
+                    <span x-text="item.item_type === 'gear' ? '🎒' : (item.item_type === 'event' ? '📅' : (item.item_type === 'task' ? '📝' : '📌'))"></span>
+                    <span class="font-medium truncate" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300" x-show="item.person">
+                      <span x-text="item.person"></span>
+                      <template x-if="getPersonClass(item.person)">
+                        <span class="bg-slate-900 px-1 rounded text-[9px] text-blue-300 border border-slate-700" x-text="getPersonClass(item.person)"></span>
+                      </template>
+                    </span>
+                    <span class="text-[10px] font-mono text-slate-400" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
+                  </div>
+                </div>
+              </template>
+              <div x-show="getItemsForDay(day.dateString).length === 0" class="text-slate-500 text-xs py-1 italic" x-text="t('no_items')">
+                No items
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Upload Modal (Mobile-responsive bottom sheet / dialog) -->
+  <div x-show="showUploadModal" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
+    <div class="bg-slate-800 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" @click.outside="if(!uploading) showUploadModal = false">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+          <span>📄</span> <span x-text="t('upload_modal_title')">Upload Schedule</span>
+        </h3>
+        <button @click="showUploadModal = false" class="text-slate-400 hover:text-white p-1 text-lg" :disabled="uploading">✕</button>
+      </div>
+
+      <p class="text-xs text-slate-300" x-text="t('upload_modal_desc')">
+        AI automatically extracts dates, activities, pack items (gym, trips), homework, and notes.
+      </p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('applies_to') + ':'">Applies to (optional):</label>
+          <select x-model="uploadPerson" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500">
+            <option value="" x-text="t('detect_automatically')">Detect from document / Whole family</option>
+            <template x-for="p in familyMembers" :key="p.id || p.name || p">
+              <option :value="p.name || p" x-text="formatMemberDisplay(p)"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- File input -->
+        <!-- File / Camera input (Supports PDF, Photos, Camera Snapshot, HEIC) -->
+        <div class="border-2 border-dashed border-slate-600 hover:border-blue-500 rounded-xl p-5 text-center cursor-pointer transition relative">
+          <input type="file" id="planFileInput" accept=".pdf,image/*,.heic,.heif" class="absolute inset-0 opacity-0 cursor-pointer" @change="handleFileSelected($event)">
+          <div class="space-y-2">
+            <div class="flex justify-center gap-3 text-slate-400">
+              <svg class="h-8 w-8" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <svg class="h-8 w-8" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
+            <p class="text-sm font-medium text-slate-200" x-text="selectedFileName || t('choose_or_drop')"></p>
+            <p class="text-xs text-slate-400" x-text="t('supported_formats')">PDF, Photos, Camera snapshot, HEIC, JPG, PNG</p>
+          </div>
+        </div>
+
+        <!-- Progress status -->
+        <div x-show="uploading" class="flex items-center gap-3 p-3 bg-blue-950/50 border border-blue-800 rounded-lg text-blue-200 text-xs">
+          <svg class="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span x-text="uploadStatusText"></span>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button @click="showUploadModal = false" :disabled="uploading" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-700" x-text="t('cancel')">Cancel</button>
+        <button @click="submitUpload()" :disabled="!selectedFile || uploading" class="px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition" x-text="t('submit_analyze')">
+          Analyze and Add to Schedule
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New / Edit Item Modal (Mobile-responsive bottom sheet / dialog) -->
+  <div x-show="showItemModal" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
+    <div class="bg-slate-800 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" @click.outside="showItemModal = false">
+      <h3 class="text-base sm:text-lg font-bold text-white" x-text="editingItemId ? t('edit_item') : t('new_item_title')"></h3>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('item_type') + ':'">Type</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button type="button" @click="itemForm.item_type = 'event'" :class="itemForm.item_type === 'event' ? 'bg-blue-600 text-white font-semibold' : 'bg-slate-700 text-slate-300'" class="py-2 text-xs font-medium rounded-lg" x-text="t('type_event')">Activity</button>
+            <button type="button" @click="itemForm.item_type = 'gear'" :class="itemForm.item_type === 'gear' ? 'bg-amber-600 text-white font-semibold' : 'bg-slate-700 text-slate-300'" class="py-2 text-xs font-medium rounded-lg" x-text="'🎒 ' + t('type_gear')">🎒 Pack</button>
+            <button type="button" @click="itemForm.item_type = 'task'" :class="itemForm.item_type === 'task' ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-700 text-slate-300'" class="py-2 text-xs font-medium rounded-lg" x-text="t('type_task')">Task</button>
+            <button type="button" @click="itemForm.item_type = 'note'" :class="itemForm.item_type === 'note' ? 'bg-purple-600 text-white font-semibold' : 'bg-slate-700 text-slate-300'" class="py-2 text-xs font-medium rounded-lg" x-text="t('type_note')">Note</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('item_title') + ':'">Title</label>
+          <input type="text" x-model="itemForm.title" :placeholder="t('item_title_placeholder')" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('date') + ':'">Date</label>
+            <input type="date" x-model="itemForm.date" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('applies_to_person') + ':'">Person</label>
+            <select x-model="itemForm.person" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-2.5 py-2 text-sm text-slate-200">
+              <option value="" x-text="t('whole_family')">Whole Family</option>
+              <template x-for="p in familyMembers" :key="p.id || p.name || p">
+                <option :value="p.name || p" x-text="formatMemberDisplay(p)"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2" x-show="itemForm.item_type === 'event'">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('start_time') + ':'">Start Time</label>
+            <input type="time" x-model="itemForm.start_time" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('end_time') + ':'">End Time</label>
+            <input type="time" x-model="itemForm.end_time" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1" x-text="t('location_details') + ':'">Location / Details</label>
+          <input type="text" x-model="itemForm.location" :placeholder="t('location_placeholder')" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-700">
+        <button x-show="editingItemId" @click="deleteItem(editingItemId)" class="text-rose-400 hover:text-rose-300 text-xs font-semibold" x-text="t('delete')">Delete</button>
+        <div class="flex gap-2 ml-auto">
+          <button @click="showItemModal = false" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-700" x-text="t('cancel')">Cancel</button>
+          <button @click="saveItem()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white" x-text="t('save')">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Family Members & Kids Management Modal -->
+  <div x-show="showFamilyModal" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
+    <div class="bg-slate-800 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" @click.outside="showFamilyModal = false">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+          <span>👨‍👩‍👧‍👦</span> <span x-text="t('manage_family_title')">Manage Family & Kids</span>
+        </h3>
+        <button @click="showFamilyModal = false" class="text-slate-400 hover:text-white p-1 text-lg">✕</button>
+      </div>
+
+      <p class="text-xs text-slate-300" x-text="t('manage_family_desc')">
+        Set names for children and parents, and specify school class (e.g. Ann: 1A, Berit: 6B, Matthew: 10C) so the AI automatically matches incoming school plans.
+      </p>
+
+      <!-- Members List -->
+      <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+        <template x-for="(m, idx) in familyMembers" :key="m.id || idx">
+          <div class="bg-slate-700/60 border border-slate-600/60 rounded-xl p-3 flex items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-sm text-white truncate" x-text="m.name || m"></span>
+                <template x-if="m.school_class">
+                  <span class="text-xs px-2 py-0.5 rounded-md bg-blue-600/30 text-blue-300 font-semibold border border-blue-500/30" x-text="t('class_label') + ' ' + m.school_class"></span>
+                </template>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button @click="editMember(m)" class="text-blue-400 hover:text-blue-300 p-1.5 rounded hover:bg-slate-600 text-xs font-medium" :title="t('edit')">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              </button>
+              <button @click="deleteMember(m)" class="text-rose-400 hover:text-rose-300 p-1.5 rounded hover:bg-slate-600 text-xs font-medium" :title="t('delete')">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Member Form (Add / Edit) -->
+      <div class="border-t border-slate-700 pt-3 space-y-3">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300" x-text="editingMemberId ? t('edit_member') : t('add_new_member')"></h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-300 mb-1" x-text="t('member_name') + ':'">Name / Child</label>
+            <input type="text" x-model="memberForm.name" :placeholder="t('member_name_placeholder')" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-slate-200">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-300 mb-1" x-text="t('school_class_label') + ':'">School Class / Grade (e.g. 1A, 6B)</label>
+            <input type="text" x-model="memberForm.school_class" :placeholder="t('class_placeholder')" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-slate-200">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <button x-show="editingMemberId" type="button" @click="cancelMemberEdit()" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-700" x-text="t('cancel')">Cancel</button>
+          <button type="button" @click="saveMember()" :disabled="!memberForm.name" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50" x-text="editingMemberId ? t('save') : t('add')">Add Member</button>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-slate-700">
+        <button @click="showFamilyModal = false" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-700 text-slate-200 hover:bg-slate-600" x-text="t('close')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom status bar & Apple Shortcut / iCal Link Info -->
+  <footer class="bg-slate-800/80 border-t border-slate-700/60 px-4 py-2.5 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-4 flex-wrap">
+      <span><span x-text="t('ai_engine_label')"></span>: <strong class="text-slate-300">{{ ai_model }}</strong></span>
+      <a href="/api/calendar.ics" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
+        <span>📅</span> <span x-text="t('subscribe_apple_cal')">Subscribe in Apple Calendar (.ics)</span>
+      </a>
+      <a href="/setup/apple-shortcut" class="text-blue-400 hover:underline flex items-center gap-1">
+        <span>📲</span> <span x-text="t('setup_apple_shortcut')">Setup "Share to Week Planner"</span>
+      </a>
+    </div>
+    <div>
+      <span x-text="t('footer_family_desc')">Week Planner for Family • Three Kids (6, 9, 11)</span>
+    </div>
+  </footer>
+
+  <script>
+    const translations = {
+      en: {
+        app_title: "Family Week Planner",
+        week_label: "Week",
+        prev_week: "Previous week",
+        next_week: "Next week",
+        today: "Today",
+        view_day: "Day",
+        view_week: "Week",
+        all_members: "All Family Members",
+        manage_family: "Manage Family & Kids",
+        family_kids: "Family / Kids",
+        documents_btn: "Documents",
+        documents_title: "View uploaded documents",
+        schedules_btn: "Schedules",
+        schedules_title: "View school schedules",
+        command_ph: "Add to the plan… e.g. 'Sigrid has chess training every Wednesday 18:00-19:50'",
+        command_send: "Add",
+        command_sending: "Thinking…",
+        command_error: "Error: ",
+        weekly: "Every week",
+        manage_family_title: "Manage Family & Kids",
+        manage_family_desc: "Set names for children and parents, and specify school class (e.g. Ann: 1A, Berit: 6B, Matthew: 10C) so the AI automatically matches incoming school plans.",
+        class_label: "Class",
+        school_class_label: "School Class / Grade (e.g. 1A, 6B)",
+        class_placeholder: "e.g. 1A, 6B, 10C",
+        add_new_member: "Add Member / Child",
+        edit_member: "Edit Member",
+        member_name: "Name",
+        member_name_placeholder: "e.g. Ann or Matthew",
+        add: "Add",
+        close: "Close",
+        edit: "Edit",
+        upload_schedule: "Upload Schedule",
+        upload_short: "Upload",
+        new_item: "New",
+        pack_for_tomorrow: "Pack for tomorrow",
+        add_item_day: "Add item for this day",
+        type_gear_heading: "Pack & Bring",
+        type_event_heading: "Activities",
+        type_task_heading: "Homework & Tasks",
+        type_note_heading: "Notes",
+        no_items: "No items planned",
+        upload_modal_title: "Upload Schedule (PDF / Image)",
+        upload_modal_desc: "AI automatically extracts dates, activities, pack items (gym, trips), homework, and notes.",
+        applies_to: "Applies to (optional)",
+        detect_automatically: "Detect from document / Whole family",
+        choose_or_drop: "Choose or drop schedule PDF / image here",
+        supported_formats: "PDF, JPG, PNG supported",
+        cancel: "Cancel",
+        submit_analyze: "Analyze and Add to Schedule",
+        edit_item: "Edit Item",
+        new_item_title: "New Item / Reminder",
+        item_type: "Type",
+        type_event: "Activity",
+        type_gear: "Pack",
+        type_task: "Task",
+        type_note: "Note",
+        item_title: "Title",
+        item_title_placeholder: "e.g. Swimming gear or Soccer practice",
+        date: "Date",
+        applies_to_person: "Person",
+        whole_family: "Whole Family",
+        start_time: "Start Time",
+        end_time: "End Time",
+        location_details: "Location / Details",
+        location_placeholder: "Location or notes",
+        delete: "Delete",
+        delete_confirm: "Are you sure you want to delete this item?",
+        settings: "Settings",
+        clear_week: "Remove all items this week",
+        clear_week_confirm: "Are you sure you want to remove all items for this week?",
+        clear_all: "Remove all items",
+        clear_all_confirm: "Are you sure you want to remove ALL items? This cannot be undone.",
+        delete_member_confirm: "Are you sure you want to remove this family member?",
+        ai_engine_label: "AI Engine",
+        subscribe_apple_cal: "Subscribe in Apple Calendar (.ics)",
+        setup_apple_shortcut: "Setup 'Share to Week Planner'",
+        footer_family_desc: "Family Week Planner with Kids & School Classes",
+        analyzing_status: "Analyzing schedule with AI...",
+        complete_status: "Complete! Found {n} items.",
+        error_status: "Error parsing document: ",
+        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+        locale: 'en-US'
+      },
+      no: {
+        app_title: "Ukeplan for familien",
+        week_label: "Uke",
+        prev_week: "Forrige uke",
+        next_week: "Neste uke",
+        today: "I dag",
+        view_day: "Dag",
+        view_week: "Uke",
+        all_members: "Alle familiemedlemmer",
+        manage_family: "Administrer familie og barn",
+        family_kids: "Familie & Barn",
+        documents_btn: "Dokumenter",
+        documents_title: "Se opplastede dokumenter",
+        schedules_btn: "Timeplaner",
+        schedules_title: "Se timeplaner",
+        command_ph: "Legg til i planen… f.eks. 'Sigrid har sjakktrening hver onsdag 18:00-19:50'",
+        command_send: "Legg til",
+        command_sending: "Tenker…",
+        command_error: "Feil: ",
+        weekly: "Hver uke",
+        manage_family_title: "Administrer familie og barn",
+        manage_family_desc: "Sett navn på barn og foreldre, og oppgi skoleklasse (f.eks. Ann: 1A, Berit: 6B, Matthew: 10C) slik at AI automatisk kjenner igjen ukeplanene.",
+        class_label: "Klasse",
+        school_class_label: "Skoleklasse / Trinn (f.eks. 1A, 6B)",
+        class_placeholder: "f.eks. 1A, 6B, 10C",
+        add_new_member: "Legg til medlem / barn",
+        edit_member: "Rediger medlem",
+        member_name: "Navn",
+        member_name_placeholder: "f.eks. Ann eller Matthew",
+        add: "Legg til",
+        close: "Lukk",
+        edit: "Rediger",
+        upload_schedule: "Last opp ukeplan",
+        upload_short: "Last opp",
+        new_item: "Ny",
+        pack_for_tomorrow: "Husk til i morgen",
+        add_item_day: "Legg til på denne dagen",
+        type_gear_heading: "Husk & Utstyr",
+        type_event_heading: "Aktiviteter",
+        type_task_heading: "Lekser & Oppgaver",
+        type_note_heading: "Beskjeder",
+        no_items: "Ingen planer",
+        upload_modal_title: "Last opp ukeplan (PDF / Bilde)",
+        upload_modal_desc: "AI leser automatisk ut datoer, aktiviteter, utstyr som må pakkes (gym, tur), lekser og notater.",
+        applies_to: "Gjelder for (valgfritt)",
+        detect_automatically: "Gjett fra planen / Hele familien",
+        choose_or_drop: "Velg eller slipp ukeplan PDF / bilde her",
+        supported_formats: "PDF, JPG, PNG støttes",
+        cancel: "Avbryt",
+        submit_analyze: "Analyser og legg til ukeplan",
+        edit_item: "Rediger aktivitet",
+        new_item_title: "Ny aktivitet / husk",
+        item_type: "Type",
+        type_event: "Aktivitet",
+        type_gear: "Husk",
+        type_task: "Lekse",
+        type_note: "Beskjed",
+        item_title: "Tittel",
+        item_title_placeholder: "f.eks. Svømmetøy eller Fotballtrening",
+        date: "Dato",
+        applies_to_person: "Gjelder person",
+        whole_family: "Hele familien",
+        start_time: "Starttid",
+        end_time: "Sluttid",
+        location_details: "Sted / Notat",
+        location_placeholder: "Sted (f.eks. Idrettshallen)",
+        delete: "Slett",
+        save: "Lagre",
+        delete_confirm: "Vil du slette denne oppføringen?",
+        settings: "Innstillinger",
+        clear_week: "Fjern alle oppføringer denne uken",
+        clear_week_confirm: "Er du sikker på at du vil fjerne alle oppføringer for denne uken?",
+        clear_all: "Fjern alle oppføringer",
+        clear_all_confirm: "Er du sikker på at du vil fjerne ALLE oppføringer? Dette kan ikke angres.",
+        delete_member_confirm: "Er du sikker på at du vil slette dette familiemedlemmet?",
+        ai_engine_label: "AI-motor",
+        subscribe_apple_cal: "Abonner i Apple Kalender (.ics)",
+        setup_apple_shortcut: "Installer 'Del til Ukeplan' (Snarvei)",
+        footer_family_desc: "Ukeplan for familien med barn og skoleklasser",
+        analyzing_status: "Analyserer ukeplan med AI...",
+        complete_status: "Fullført! Fant {n} aktiviteter.",
+        error_status: "Feil under analyse: ",
+        days: ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'],
+        locale: 'no-NO'
+      }
+    };
+
+    function weekPlannerApp() {
+      return {
+        lang: localStorage.getItem('ukeplan_lang') || 'no',
+        mobileViewMode: 'day', // 'day' or 'week' on mobile screens
+        selectedDayIndex: 0,
+        familyMembers: {{ family_members | tojson }},
+        items: [],
+        currentDate: new Date(),
+        selectedPerson: '',
+        showUploadModal: false,
+        showItemModal: false,
+        showSettingsMenu: false,
+        editingItemId: null,
+        editingMemberId: null,
+        memberForm: {
+          name: '',
+          school_class: '',
+        },
+        selectedFile: null,
+        selectedFileName: '',
+        uploadPerson: '',
+        uploading: false,
+        uploadStatusText: '',
+        itemForm: {
+          title: '',
+          description: '',
+          item_type: 'event',
+          person: '',
+          date: '',
+          start_time: '',
+          location: '',
+        },
+        commandText: '',
+        commandSending: false,
+        commandStatus: '',
+
+        init() {
+          // Default selected day on mobile to today's day of week
+          const day = (new Date().getDay() + 6) % 7; // Monday = 0
+          this.selectedDayIndex = day;
+          this.loadMembers();
+          this.loadItems();
+        },
+
+        t(key) {
+          return (translations[this.lang] && translations[this.lang][key]) || translations['en'][key] || key;
+        },
+
+        setLanguage(newLang) {
+          this.lang = newLang;
+          localStorage.setItem('ukeplan_lang', newLang);
+        },
+
+        get currentMobileDay() {
+          return this.weekDays[this.selectedDayIndex] || this.weekDays[0];
+        },
+
+        get currentWeekNumber() {
+          const d = new Date(Date.UTC(this.currentDate.getFullYear(), this.currentDate.getMonth(), this.currentDate.getDate()));
+          const dayNum = d.getUTCDay() || 7;
+          d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+          const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+          return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        },
+
+        get mondayOfWeek() {
+          const d = new Date(this.currentDate);
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+          return new Date(d.setDate(diff));
+        },
+
+        get weekDays() {
+          const days = [];
+          const dayNames = translations[this.lang].days;
+          const locale = translations[this.lang].locale;
+          const mon = this.mondayOfWeek;
+          for (let i = 0; i < 7; i++) {
+            const next = new Date(mon);
+            next.setDate(mon.getDate() + i);
+            const iso = next.toISOString().split('T')[0];
+            const display = next.getDate() + ' ' + next.toLocaleDateString(locale, { month: 'short' });
+            days.push({
+              dayName: dayNames[i],
+              dateString: iso,
+              displayDate: display,
+            });
+          }
+          return days;
+        },
+
+        get weekDateRangeString() {
+          const mon = this.mondayOfWeek;
+          const sun = new Date(mon);
+          sun.setDate(mon.getDate() + 6);
+          const locale = translations[this.lang].locale;
+          return `${mon.getDate()} ${mon.toLocaleDateString(locale, { month: 'short' })} – ${sun.getDate()} ${sun.toLocaleDateString(locale, { month: 'short', year: 'numeric' })}`;
+        },
+
+        get tomorrowGear() {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const iso = tomorrow.toISOString().split('T')[0];
+          return this.items.filter(it => it.date === iso && it.item_type === 'gear' && !it.is_completed);
+        },
+
+        previousWeek() {
+          const d = new Date(this.currentDate);
+          d.setDate(d.getDate() - 7);
+          this.currentDate = d;
+          this.loadItems();
+        },
+
+        nextWeek() {
+          const d = new Date(this.currentDate);
+          d.setDate(d.getDate() + 7);
+          this.currentDate = d;
+          this.loadItems();
+        },
+
+        currentWeek() {
+          this.currentDate = new Date();
+          const day = (new Date().getDay() + 6) % 7;
+          this.selectedDayIndex = day;
+          this.loadItems();
+        },
+
+        isToday(dateString) {
+          const today = new Date().toISOString().split('T')[0];
+          return dateString === today;
+        },
+
+        async loadItems() {
+          const mon = this.mondayOfWeek.toISOString().split('T')[0];
+          const sunDate = new Date(this.mondayOfWeek);
+          sunDate.setDate(sunDate.getDate() + 6);
+          const sun = sunDate.toISOString().split('T')[0];
+
+          let url = `/api/items?start_date=${mon}&end_date=${sun}`;
+          if (this.selectedPerson) {
+            url += `&person=${encodeURIComponent(this.selectedPerson)}`;
+          }
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              this.items = await res.json();
+            }
+          } catch (e) {
+            console.error("Failed to load items:", e);
+          }
+        },
+
+        itemOnDate(item, dateStr) {
+          if (item.date === dateStr) return true;
+          if (item.recurring_weekly && item.day_of_week) {
+            const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay() || 7; // 1=Mon..7=Sun
+            return dow === Number(item.day_of_week);
+          }
+          return false;
+        },
+
+        getItemsForDay(dateStr) {
+          return this.items.filter(i => this.itemOnDate(i, dateStr));
+        },
+
+        getItemsForDayAndType(dateStr, type) {
+          return this.items.filter(i => this.itemOnDate(i, dateStr) && i.item_type === type);
+        },
+
+        async sendCommand() {
+          const text = this.commandText.trim();
+          if (!text || this.commandSending) return;
+          this.commandSending = true;
+          this.commandStatus = this.t('command_sending');
+          try {
+            const res = await fetch('/api/commands', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.commandStatus = data.summary || '';
+              this.commandText = '';
+              await this.loadItems();
+            } else {
+              this.commandStatus = this.t('command_error') + (data.detail || '');
+            }
+          } catch (e) {
+            this.commandStatus = this.t('command_error') + e.message;
+          } finally {
+            this.commandSending = false;
+          }
+        },
+
+        formatTime(t) {
+          if (!t) return '';
+          return t.substring(0, 5);
+        },
+
+        async toggleComplete(item) {
+          try {
+            const res = await fetch(`/api/items/${item.id}/toggle`, { method: 'POST' });
+            if (res.ok) {
+              item.is_completed = !item.is_completed;
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        },
+
+        openNewItemModal(defaultDate = null) {
+          this.editingItemId = null;
+          this.itemForm = {
+            title: '',
+            description: '',
+            item_type: 'event',
+            person: this.selectedPerson || '',
+            date: defaultDate || new Date().toISOString().split('T')[0],
+            start_time: '',
+            end_time: '',
+            location: '',
+          };
+          this.showItemModal = true;
+        },
+
+        editItem(item) {
+          this.editingItemId = item.id;
+          this.itemForm = {
+            title: item.title,
+            description: item.description || '',
+            item_type: item.item_type,
+            person: item.person || '',
+            date: item.date,
+            start_time: item.start_time ? item.start_time.substring(0, 5) : '',
+            end_time: item.end_time ? item.end_time.substring(0, 5) : '',
+            location: item.location || '',
+          };
+          this.showItemModal = true;
+        },
+
+        async saveItem() {
+          if (!this.itemForm.title || !this.itemForm.date) return;
+          const payload = {
+            title: this.itemForm.title,
+            description: this.itemForm.description || null,
+            item_type: this.itemForm.item_type,
+            person: this.itemForm.person || null,
+            date: this.itemForm.date,
+            start_time: this.itemForm.start_time || null,
+            end_time: this.itemForm.end_time || null,
+            location: this.itemForm.location || null,
+          };
+
+          const method = this.editingItemId ? 'PUT' : 'POST';
+          const url = this.editingItemId ? `/api/items/${this.editingItemId}` : '/api/items';
+
+          const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            this.showItemModal = false;
+            this.loadItems();
+          }
+        },
+
+        async deleteItem(id) {
+          const ok = await this.deleteItemDirect(id);
+          if (ok) this.showItemModal = false;
+        },
+
+        async deleteItemDirect(id) {
+          if (!confirm(this.t('delete_confirm'))) return false;
+          const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+            this.loadItems();
+            return true;
+          }
+          return false;
+        },
+
+        get currentIsoWeek() {
+          const d = new Date(Date.UTC(this.currentDate.getFullYear(), this.currentDate.getMonth(), this.currentDate.getDate()));
+          d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+          const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+          return { year: d.getUTCFullYear(), week: Math.ceil((((d - yearStart) / 86400000) + 1) / 7) };
+        },
+
+        confirmClearWeek() {
+          this.showSettingsMenu = false;
+          const { week, year } = this.currentIsoWeek;
+          if (!confirm(this.t('clear_week_confirm') + ` (${this.t('week_label')} ${week} ${year})`)) return;
+          this.clearWeek(week, year);
+        },
+
+        async clearWeek(week, year) {
+          const res = await fetch(`/api/items?week=${week}&year=${year}`, { method: 'DELETE' });
+          if (res.ok) this.loadItems();
+        },
+
+        confirmClearAll() {
+          this.showSettingsMenu = false;
+          if (!confirm(this.t('clear_all_confirm'))) return;
+          this.clearAll();
+        },
+
+        async clearAll() {
+          const res = await fetch('/api/items', { method: 'DELETE' });
+          if (res.ok) this.loadItems();
+        },
+
+        handleFileSelected(event) {
+          const file = event.target.files[0];
+          if (file) {
+            this.selectedFile = file;
+            this.selectedFileName = file.name;
+          }
+        },
+
+        async submitUpload() {
+          if (!this.selectedFile) return;
+          this.uploading = true;
+          this.uploadStatusText = this.t('analyzing_status');
+
+          const formData = new FormData();
+          formData.append("file", this.selectedFile);
+          if (this.uploadPerson) {
+            formData.append("person", this.uploadPerson);
+          }
+          formData.append("channel", "web");
+
+          try {
+            const res = await fetch("/api/ingest", {
+              method: "POST",
+              body: formData,
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.uploadStatusText = this.t('complete_status').replace('{n}', data.items_count);
+              setTimeout(() => {
+                this.showUploadModal = false;
+                this.uploading = false;
+                this.selectedFile = null;
+                this.selectedFileName = '';
+                this.loadItems();
+              }, 1200);
+            } else {
+              alert(this.t('error_status') + (data.detail || "Unknown error"));
+              this.uploading = false;
+            }
+          } catch (e) {
+            alert("Network error: " + e.message);
+            this.uploading = false;
+          }
+        },
+
+        formatMemberDisplay(p) {
+          if (!p) return '';
+          if (typeof p === 'string') return p;
+          if (p.school_class) {
+            return `${p.name} (${p.school_class})`;
+          }
+          return p.name;
+        },
+
+        getPersonClass(personName) {
+          if (!personName) return null;
+          const member = this.familyMembers.find(m => (typeof m === 'object' && m.name === personName));
+          return member && member.school_class ? member.school_class : null;
+        },
+
+        async loadMembers() {
+          try {
+            const res = await fetch('/api/members');
+            if (res.ok) {
+              this.familyMembers = await res.json();
+            }
+          } catch (e) {
+            console.error("Failed to load members:", e);
+          }
+        },
+
+        openFamilyModal() {
+          this.editingMemberId = null;
+          this.memberForm = { name: '', school_class: '' };
+          this.showFamilyModal = true;
+        },
+
+        editMember(m) {
+          this.editingMemberId = m.id;
+          this.memberForm = {
+            name: m.name,
+            school_class: m.school_class || '',
+          };
+        },
+
+        cancelMemberEdit() {
+          this.editingMemberId = null;
+          this.memberForm = { name: '', school_class: '' };
+        },
+
+        async saveMember() {
+          if (!this.memberForm.name) return;
+          const payload = {
+            name: this.memberForm.name.trim(),
+            school_class: this.memberForm.school_class ? this.memberForm.school_class.trim() : null,
+          };
+          const method = this.editingMemberId ? 'PUT' : 'POST';
+          const url = this.editingMemberId ? `/api/members/${this.editingMemberId}` : '/api/members';
+
+          try {
+            const res = await fetch(url, {
+              method: method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+              await this.loadMembers();
+              this.cancelMemberEdit();
+              await this.loadItems();
+            }
+          } catch (e) {
+            console.error("Failed to save member:", e);
+          }
+        },
+
+        async deleteMember(m) {
+          if (!confirm(this.t('delete_member_confirm'))) return;
+          try {
+            const res = await fetch(`/api/members/${m.id}`, { method: 'DELETE' });
+            if (res.ok) {
+              await this.loadMembers();
+              if (this.editingMemberId === m.id) {
+                this.cancelMemberEdit();
+              }
+              await this.loadItems();
+            }
+          } catch (e) {
+            console.error("Failed to delete member:", e);
+          }
+        },
+      }
+    }
+  </script>
+</body>
+</html>

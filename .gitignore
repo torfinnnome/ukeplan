@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.python-version
+
+# Virtual environments
+.venv
+
+# Test caches
+.pytest_cache/
+
+# Runtime data (created automatically on startup)
+data/
+models/
+*.db
+.env

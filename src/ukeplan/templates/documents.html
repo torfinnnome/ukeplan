@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="no" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <title x-text="t('page_title')">Dokumenter – Ukeplan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body class="p-6 max-w-6xl mx-auto font-sans" x-data="documentsApp()" x-init="init()">
+
+  <div class="mb-8 flex items-center justify-between flex-wrap gap-3">
+    <a href="/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
+      ← <span x-text="t('back')">Tilbake til Ukeplan</span>
+    </a>
+    <div class="flex items-center gap-3">
+      <div class="inline-flex rounded-lg bg-slate-700/60 p-0.5 border border-slate-600/50 text-xs">
+        <button @click="setLanguage('en')" :class="lang === 'en' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300 hover:text-white'" class="px-2 py-1 rounded-md transition text-[11px]">
+          EN
+        </button>
+        <button @click="setLanguage('no')" :class="lang === 'no' ? 'bg-blue-600 text-white font-semibold shadow' : 'text-slate-300 hover:text-white'" class="px-2 py-1 rounded-md transition text-[11px]">
+          NO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <h1 class="text-3xl font-extrabold text-white mb-2" x-text="t('title')">Dokumenter</h1>
+  <p class="text-slate-300 text-sm mb-6 leading-relaxed" x-text="t('intro')">Alle opplastede ukeplaner lagres her.</p>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap items-center gap-3 mb-6">
+    <select x-model="filterPerson" @change="loadDocuments()" class="bg-slate-700 border border-slate-600 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <option value="" x-text="t('all_persons')">Alle barn</option>
+      <template x-for="m in familyMembers" :key="m.name">
+        <option :value="m.name" x-text="formatMember(m)"></option>
+      </template>
+    </select>
+    <input type="number" min="1" max="53" x-model="filterWeek" @input="loadDocuments()"
+           :placeholder="t('week_ph')" class="w-28 bg-slate-700 border border-slate-600 text-xs rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <button @click="clearFilters()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-600 transition" x-text="t('clear_filters')">Nullstill</button>
+  </div>
+
+  <!-- Status -->
+  <div x-show="loading" class="text-slate-400 text-sm mb-4" x-text="t('loading')">Laster…</div>
+  <div x-show="!loading && documents.length === 0"
+       class="bg-slate-800/60 border border-slate-700 rounded-2xl p-10 text-center text-slate-400 text-sm mb-4"
+       x-text="t('empty')">Ingen dokumenter ennå.</div>
+
+  <!-- Document grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
+    <template x-for="d in documents" :key="d.id">
+      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl overflow-hidden shadow flex flex-col">
+        <!-- Preview -->
+        <a :href="fileUrl(d)" target="_blank" class="block h-44 bg-slate-900/80 flex items-center justify-center overflow-hidden group">
+          <img x-show="isImage(d)" :src="fileUrl(d)" :alt="d.filename" loading="lazy"
+               class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+          <div x-show="!isImage(d)" class="text-center text-slate-500">
+            <svg class="w-14 h-14 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <span class="text-xs font-mono" x-text="ext(d)"></span>
+          </div>
+        </a>
+
+        <div class="p-4 flex flex-col gap-3 flex-1">
+          <!-- Name & meta -->
+          <div>
+            <p class="text-sm font-semibold text-white truncate" x-text="d.filename" :title="d.filename"></p>
+            <p class="text-[11px] text-slate-400" x-text="formatDate(d.created_at) + ' · ' + formatSize(d.size_bytes)"></p>
+          </div>
+
+          <!-- Tags -->
+          <div class="flex flex-wrap gap-1.5">
+            <span x-show="d.person" class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-900/60 text-blue-200 border border-blue-700/50" x-text="d.person"></span>
+            <span x-show="d.week_number" class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-900/60 text-emerald-200 border border-emerald-700/50" x-text="weekLabel(d)"></span>
+            <span x-show="!d.person && !d.week_number" class="text-[11px] text-slate-500" x-text="t('untagged')">Uten merke</span>
+          </div>
+
+          <!-- Tag editing -->
+          <div class="flex items-center gap-2 text-xs">
+            <select x-model="editPerson[d.id]" class="flex-1 min-w-0 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="" x-text="t('no_person')">(ingen person)</option>
+              <template x-for="m in familyMembers" :key="m.name">
+                <option :value="m.name" x-text="m.name"></option>
+              </template>
+            </select>
+            <input type="number" min="1" max="53" x-model="editWeek[d.id]" :placeholder="t('week_ph')"
+                   class="w-16 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button @click="saveTags(d)" class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded-lg px-2.5 py-1.5 font-semibold text-slate-200 border border-slate-600 transition" x-text="t('save')">Lagre</button>
+          </div>
+
+          <!-- Actions -->
+          <div class="mt-auto flex items-center gap-2 pt-1 border-t border-slate-700/60">
+            <a :href="fileUrl(d)" target="_blank" class="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              <span x-text="t('view')">Se</span>
+            </a>
+            <button @click="removeDocument(d)" class="flex items-center justify-center gap-1.5 bg-red-900/60 hover:bg-red-800 border border-red-800/60 text-red-200 rounded-lg px-3 py-1.5 text-xs font-semibold transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <span x-text="t('remove')">Slett</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <script>
+    const docTranslations = {
+      en: {
+        page_title: "Documents – Week Planner",
+        back: "Back to Week Planner",
+        title: "Documents",
+        intro: "All uploaded week plans (PDFs and photos) are stored here, tagged with child and week. Click a document to view it, adjust the tags, or delete it.",
+        all_persons: "All children",
+        week_ph: "Week",
+        clear_filters: "Reset",
+        loading: "Loading…",
+        empty: "No documents yet. Upload a week plan from the planner page or share one from your iPhone.",
+        untagged: "Untagged",
+        no_person: "(no person)",
+        save: "Save",
+        view: "View",
+        remove: "Delete",
+        confirm_remove: "Delete document"
+      },
+      no: {
+        page_title: "Dokumenter – Ukeplan",
+        back: "Tilbake til Ukeplan",
+        title: "Dokumenter",
+        intro: "Alle opplastede ukeplaner (PDF og bilder) lagres her, merket med barn og uke. Trykk på et dokument for å se det, justér merkene eller slett det.",
+        all_persons: "Alle barn",
+        week_ph: "Uke",
+        clear_filters: "Nullstill",
+        loading: "Laster…",
+        empty: "Ingen dokumenter ennå. Last opp en ukeplan fra plansiden, eller del den fra iPhone.",
+        untagged: "Uten merke",
+        no_person: "(ingen person)",
+        save: "Lagre",
+        view: "Se",
+        remove: "Slett",
+        confirm_remove: "Slette dokumentet"
+      }
+    };
+
+    function documentsApp() {
+      return {
+        lang: localStorage.getItem('ukeplan_lang') || 'no',
+        familyMembers: {{ family_members | tojson }},
+        documents: [],
+        loading: false,
+        filterPerson: '',
+        filterWeek: '',
+        editPerson: {},
+        editWeek: {},
+
+        init() {
+          this.loadDocuments();
+        },
+
+        t(key) {
+          return (docTranslations[this.lang] && docTranslations[this.lang][key]) || docTranslations['en'][key] || key;
+        },
+
+        setLanguage(l) {
+          this.lang = l;
+          localStorage.setItem('ukeplan_lang', l);
+        },
+
+        fileUrl(d) {
+          return '/api/documents/' + d.id + '/file';
+        },
+
+        isImage(d) {
+          return (d.mime_type || '').startsWith('image/');
+        },
+
+        ext(d) {
+          const i = d.filename.lastIndexOf('.');
+          return i >= 0 ? d.filename.slice(i + 1).toUpperCase() : 'FILE';
+        },
+
+        weekLabel(d) {
+          const label = (this.lang === 'no' ? 'Uke ' : 'Week ') + d.week_number;
+          return (d.year && d.year !== new Date().getFullYear()) ? label + ' ' + d.year : label;
+        },
+
+        formatDate(iso) {
+          return new Date(iso).toLocaleDateString(this.lang === 'no' ? 'nb-NO' : 'en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+          });
+        },
+
+        formatSize(b) {
+          if (b < 1024) return b + ' B';
+          if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
+          return (b / 1024 / 1024).toFixed(1) + ' MB';
+        },
+
+        formatMember(m) {
+          return m.name + (m.school_class ? ' (' + m.school_class + ')' : '');
+        },
+
+        async loadDocuments() {
+          this.loading = true;
+          const params = new URLSearchParams();
+          if (this.filterPerson) params.set('person', this.filterPerson);
+          if (this.filterWeek !== '' && this.filterWeek !== null) params.set('week', String(this.filterWeek));
+          try {
+            const res = await fetch('/api/documents?' + params.toString());
+            this.documents = await res.json();
+            this.editPerson = {};
+            this.editWeek = {};
+            for (const d of this.documents) {
+              this.editPerson[d.id] = d.person || '';
+              this.editWeek[d.id] = d.week_number !== null && d.week_number !== undefined ? d.week_number : '';
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        clearFilters() {
+          this.filterPerson = '';
+          this.filterWeek = '';
+          this.loadDocuments();
+        },
+
+        async saveTags(d) {
+          const body = {
+            person: this.editPerson[d.id] || '',
+            week_number: this.editWeek[d.id] === '' || this.editWeek[d.id] === null ? null : Number(this.editWeek[d.id])
+          };
+          const res = await fetch('/api/documents/' + d.id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (res.ok) {
+            Object.assign(d, await res.json());
+          } else {
+            alert('Feil ved lagring av merker (error saving tags)');
+          }
+        },
+
+        async removeDocument(d) {
+          if (!confirm(this.t('confirm_remove') + ': ' + d.filename + '?')) return;
+          const res = await fetch('/api/documents/' + d.id, { method: 'DELETE' });
+          if (res.ok) {
+            this.documents = this.documents.filter(x => x.id !== d.id);
+          } else {
+            alert('Feil ved sletting (error deleting)');
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

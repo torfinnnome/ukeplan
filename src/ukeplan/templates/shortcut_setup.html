@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="no" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <title x-text="t('page_title')">Sett opp Apple Snarvei og Kalender – Ukeplan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body class="p-6 max-w-4xl mx-auto font-sans" x-data="shortcutSetupApp()" x-init="init()">
+  
+  <div class="mb-8 flex items-center justify-between flex-wrap gap-3">
+    <a href="/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
+      ← <span x-text="t('back_to_planner')">Back to Week Planner</span>
+    </a>
+    <div class="flex items-center gap-3">
+      <!-- Language switcher -->
+      <div class="inline-flex rounded-lg bg-slate-800 p-0.5 border border-slate-700 text-xs">
+        <button @click="setLanguage('en')" :class="lang === 'en' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-white'" class="px-2 py-1 rounded-md transition text-xs">
+          EN
+        </button>
+        <button @click="setLanguage('no')" :class="lang === 'no' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-white'" class="px-2 py-1 rounded-md transition text-xs">
+          NO
+        </button>
+      </div>
+      <span class="text-xs bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-300">
+        iOS / iPadOS / macOS Setup
+      </span>
+    </div>
+  </div>
+
+  <h1 class="text-3xl font-extrabold text-white mb-4" x-text="t('main_heading')">Apple Integrations for Week Planner</h1>
+  <p class="text-slate-300 text-sm mb-8 leading-relaxed" x-text="t('intro_desc')">
+    Since your entire family uses Apple devices, you can forward school plans directly from the native Share Sheet in Mail, Safari, or Files, as well as subscribe directly in Apple Calendar across iPhone, iPad, Mac, and Apple Watch.
+  </p>
+
+
+    <!-- Section 1: Apple Shortcut -->
+    <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-600 p-2.5 rounded-xl text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white" x-text="t('sec1_title')">1. "Share to Week Planner" (Apple Shortcut)</h2>
+          <p class="text-xs text-slate-400" x-text="t('sec1_subtitle')">Allows sharing any PDF or camera photo directly into Week Planner</p>
+        </div>
+      </div>
+
+      <div class="bg-emerald-900/25 rounded-xl p-4 border border-emerald-700/50 space-y-3 text-xs text-slate-200">
+        <p class="font-semibold text-emerald-300" x-text="t('sec1_download_title')">Enkeltest: last ned ferdig snarvei (ett trykk)</p>
+        <a :href="'/setup/apple-shortcut/download?name=' + encodeURIComponent(shortcutName())"
+           class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          <span x-text="t('sec1_download_btn')">Last ned «Del til Ukeplan» (signert)</span>
+        </a>
+        <ol class="list-decimal list-inside space-y-1 leading-relaxed">
+          <li x-html="t('sec1_download_step1')">Åpne filen (fra Filer-appen) → trykk <strong>Importer</strong>.</li>
+          <li><span x-html="t('sec1_download_step2a')"></span> <span class="font-mono text-emerald-300" x-text="origin + '/api/ingest'"></span> <span x-html="t('sec1_download_step2b')"></span></li>
+          <li x-html="t('sec1_download_step3')"></li>
+        </ol>
+        <p class="text-slate-400" x-html="t('sec1_download_note')"></p>
+      </div>
+
+      <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800 space-y-3 text-xs text-slate-300">
+        <p class="font-semibold text-white" x-html="t('sec1_how')">How to create the shortcut in Apple Shortcuts (iPhone / iPad):</p>
+        <ol class="list-decimal list-inside space-y-3 leading-relaxed">
+          <li x-html="t('sec1_step1')">Open the Shortcuts app → tap + in the top-right corner → New Shortcut.</li>
+          <li x-html="t('sec1_step2')">Tap the shortcut name at the top of the screen to open the shortcut details, then:</li>
+          <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
+            <li x-html="t('sec1_step2a')">Set the name to 'Share to Week Planner' (and pick an icon if you like).</li>
+            <li x-html="t('sec1_step2b')">Turn on Show in Share Sheet.</li>
+            <li x-html="t('sec1_step2c')">Under Input → Receive: tick Files and Images.</li>
+          </ul>
+          <li x-html="t('sec1_step3')">Back in the editor, tap + (bottom-right) → search for 'HTTP' → add the action Send HTTP Request:</li>
+          <ul class="list-disc list-inside ml-4 mt-1 space-y-1 font-mono text-[11px] text-blue-300">
+            <li><span x-text="t('sec1_http_url')"></span> <span class="bg-slate-800 px-1 py-0.5 rounded text-white" x-text="origin + '/api/ingest'">http://...</span></li>
+            <li><span x-text="t('sec1_http_method')"></span> <span class="text-amber-300">POST</span></li>
+            <li><span x-text="t('sec1_http_body')"></span> <span class="text-amber-300" x-text="t('sec1_http_formdata')"></span></li>
+            <li><span x-text="t('sec1_http_add_field')"></span></li>
+            <li><span x-text="t('sec1_http_key')"></span> <span class="text-emerald-300">file</span> &nbsp;→&nbsp; <span x-text="t('sec1_http_val')"></span> <span class="text-emerald-300" x-text="t('sec1_http_input')"></span></li>
+            <li><span x-text="t('sec1_http_key')"></span> <span class="text-emerald-300">channel</span> &nbsp;→&nbsp; <span x-text="t('sec1_http_val')"></span> <span class="text-emerald-300">"shortcut"</span></li>
+          </ul>
+          <li x-html="t('sec1_step4')">Optional: add the action Show Notification with the text 'Week Planner updated!'.</li>
+          <li x-html="t('sec1_step5')">Tap Done. You can now share: open any PDF or photo in Mail, Files, or Photos → Share → 'Share to Week Planner'.</li>
+        </ol>
+        <p class="text-amber-300/90 mt-2 pt-2 border-t border-slate-800" x-html="t('sec1_url_note')">The URL must be reachable from the phone...</p>
+
+        <div class="mt-2 pt-2 border-t border-slate-800 space-y-2">
+          <p class="font-semibold text-white" x-text="t('sec1_test_label')">Test the shortcut after setup:</p>
+          <a :href="'shortcuts://x-callback-url/run-shortcut?name=' + encodeURIComponent(shortcutName())"
+             class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg font-semibold">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+            <span x-text="t('sec1_test_btn')">Open in Shortcuts</span>
+          </a>
+          <p class="text-slate-400" x-html="t('sec1_test_hint')">Opens the Shortcuts app and runs the shortcut. Only works after the shortcut has been created (steps 1–5 above).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note about shortcut signing -->
+    <div class="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4">
+      <p class="text-xs text-slate-300 leading-relaxed" x-html="t('signing_note')">
+        Den nedlastede filen signeres av RoutineHubs offentlige signeringstjeneste (HubSign).
+      </p>
+    </div>
+
+    <!-- Section 2: Apple Calendar (.ics) -->
+    <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-purple-600 p-2.5 rounded-xl text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white" x-text="t('sec2_title')">2. Subscription in Apple Calendar</h2>
+          <p class="text-xs text-slate-400" x-text="t('sec2_subtitle')">View all activities and gear reminders on lock screens, Apple Watch, and widgets</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800 space-y-3 text-xs text-slate-300">
+        <p class="font-semibold text-white" x-text="t('sec2_link_label')">Calendar subscription link:</p>
+        <div class="flex items-center gap-2">
+          <input type="text" readonly :value="origin + '/api/calendar.ics'" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-blue-300 select-all">
+          <button @click="copyCalLink()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg font-semibold shrink-0" x-text="t('copy')">Copy</button>
+        </div>
+        <p class="text-slate-400 mt-2" x-text="t('sec2_instructions')">
+          On iPhone: Go to Settings → Calendar → Calendar Accounts → Add Account → Other → Add Subscribed Calendar and paste the URL above.
+        </p>
+      </div>
+    </div>
+
+    <!-- Section 3: Email Forwarding -->
+    <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-emerald-600 p-2.5 rounded-xl text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white" x-text="t('sec3_title')">3. Email Forwarding (IMAP Bot)</h2>
+          <p class="text-xs text-slate-400" x-text="t('sec3_subtitle')">Forward emails from schools, teachers, or clubs</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800 text-xs text-slate-300 space-y-2">
+        <p x-text="t('sec3_env_desc')">The background bot monitors the mailbox configured in your environment variables:</p>
+        <pre class="bg-slate-950 p-3 rounded-lg text-slate-300 font-mono text-[11px] overflow-x-auto">
+IMAP_ENABLED=true
+IMAP_HOST=imap.gmail.com
+IMAP_USER=family-weekplan@gmail.com
+IMAP_PASSWORD=your-app-password
+IMAP_POLL_INTERVAL_SECONDS=120
+        </pre>
+        <p class="text-slate-400" x-text="t('sec3_forward_hint')">
+          When you receive an email containing a week schedule (as a PDF attachment or directly in the email body), simply forward it to this address. The bot parses it and updates the dashboard automatically.
+        </p>
+      </div>
+    </div>
+
+    <!-- Section 4: Share with the family -->
+    <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-rose-600 p-2.5 rounded-xl text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white" x-text="t('sec4_title')">4. Share with the rest of the family</h2>
+          <p class="text-xs text-slate-400" x-text="t('sec4_subtitle')">Create the shortcut once — everyone else imports it with one tap</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 rounded-xl p-4 border border-slate-800 space-y-3 text-xs text-slate-300">
+        <p class="font-semibold text-white" x-text="t('sec4_intro')">Once the shortcut exists on one device, share it with the family:</p>
+        <ol class="list-decimal list-inside space-y-2 leading-relaxed">
+          <li x-html="t('sec4_step1')">Open the shortcut in the Shortcuts app → tap the <strong>share icon</strong> (top-right) → choose <strong>Share via iCloud</strong> → <strong>Copy Link</strong>.</li>
+          <li x-html="t('sec4_step2')">Send the link to the family (Messages, Mail, …). When a family member taps the link, Shortcuts opens with an <strong>Add Shortcut</strong> button — one tap and it is in their share sheet.</li>
+          <li x-html="t('sec4_step3')">Alternatively: choose <strong>Share via AirDrop</strong> and pick the other iPhone/iPad directly.</li>
+        </ol>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const setupTranslations = {
+      en: {
+        page_title: "Setup Apple Shortcut & Calendar – Week Planner",
+        back_to_planner: "Back to Week Planner",
+        main_heading: "Apple Integrations for Week Planner",
+        intro_desc: "Since your entire family uses Apple devices, you can forward school plans directly from the native Share Sheet in Mail, Safari, or Files, as well as subscribe directly in Apple Calendar across iPhone, iPad, Mac, and Apple Watch.",
+        sec1_title: "1. 'Share to Week Planner' (Apple Shortcut)",
+        sec1_subtitle: "Share PDFs or camera photos directly into Ukeplan from Mail, Files, Photos or the Camera",
+        sec1_how: "Alternative: create the shortcut manually (if the download does not work):",
+        sec1_step1: "Open the <strong>Shortcuts</strong> app → tap <strong>+</strong> in the top-right corner → <strong>New Shortcut</strong>.",
+        sec1_step2: "Tap the <strong>shortcut name at the top</strong> of the screen to open the shortcut details, then:",
+        sec1_step2a: "Set the name to <strong>'Share to Week Planner'</strong> (and pick an icon if you like).",
+        sec1_step2b: "Turn on <strong>Show in Share Sheet</strong>.",
+        sec1_step2c: "Under <strong>Input</strong> → <strong>Receive:</strong> tick <strong>Files</strong> and <strong>Images</strong>.",
+        sec1_step3: "Back in the editor, tap <strong>+</strong> (bottom-right) → search for <strong>'HTTP'</strong> → add the action <strong>Send HTTP Request</strong>:",
+        sec1_http_url: "URL:",
+        sec1_http_method: "Method:",
+        sec1_http_body: "Body:",
+        sec1_http_formdata: "Form Data",
+        sec1_http_add_field: "Tap + to add one Field per row below.",
+        sec1_http_key: "Key",
+        sec1_http_val: "Value",
+        sec1_http_input: "Shortcut Input",
+        sec1_step4: "Optional: add the action <strong>Show Notification</strong> with the text <strong>'Week Planner updated!'</strong>.",
+        sec1_step5: "Tap <strong>Done</strong>. You can now share: open any PDF or photo in Mail, Files, or Photos → <strong>Share</strong> → <strong>'Share to Week Planner'</strong>.",
+        sec1_url_note: "⚠️ The URL above must be reachable from the phone: same Wi-Fi network, and use the server's local IP (e.g. <strong>http://192.168.1.50:8000/api/ingest</strong>) — not <code>localhost</code>. If iOS asks for access to the <em>Local Network</em>, allow it.",
+        sec1_test_label: "Test the shortcut after setup:",
+        sec1_test_btn: "Open in Shortcuts",
+        sec1_test_hint: "Opens the Shortcuts app and runs 'Share to Week Planner'. Only works after the shortcut has been created (steps 1–5 above).",
+        sec1_download_title: "Easiest: download the ready-made shortcut (one tap)",
+        sec1_download_btn: "Download 'Share to Week Planner' (signed)",
+        sec1_download_step1: "Open the file (from the Files app) → tap <strong>Import</strong>.",
+        sec1_download_step2a: "In the Shortcuts app, check that <strong>Send HTTP Request</strong> points to",
+        sec1_download_step2b: "with <strong>POST</strong> + <strong>Form Data</strong> (file = Shortcut Input, channel = shortcut).",
+        sec1_download_step3: "Done — share any PDF or photo → <strong>Share</strong> → <strong>'Share to Week Planner'</strong>.",
+        sec1_download_note: "The file is signed via RoutineHub's public signing service and contains this server address. If you move the server, download the file again from the new address.",
+        signing_note: "The downloaded file is signed by the public RoutineHub signing service (HubSign) — the standard way shortcuts are distributed. If that service is down, the server sends an unsigned file (<code>.plist</code>) instead; sign it once on your Mac with <code>shortcuts sign -i &lt;file&gt;.plist -o Del-til-Ukeplan.shortcut -m anyone</code>, then import the result.",
+        sec4_title: "4. Share with the rest of the family",
+        sec4_subtitle: "Create the shortcut once — everyone else imports it with one tap",
+        sec4_intro: "Once the shortcut exists on one device, share it with the family:",
+        sec4_step1: "Open the shortcut in the Shortcuts app → tap the <strong>share icon</strong> (top-right) → choose <strong>Share via iCloud</strong> → <strong>Copy Link</strong>.",
+        sec4_step2: "Send the link to the family (Messages, Mail, …). When a family member taps the link, Shortcuts opens with an <strong>Add Shortcut</strong> button — one tap and it is in their share sheet.",
+        sec4_step3: "Alternatively: choose <strong>Share via AirDrop</strong> and pick the other iPhone/iPad directly.",
+        sec2_title: "2. Subscription in Apple Calendar",
+        sec2_subtitle: "View all activities and gear reminders on lock screens, Apple Watch, and widgets",
+        sec2_link_label: "Calendar subscription link:",
+        copy: "Copy",
+        copied: "Copied to clipboard!",
+        sec2_instructions: "On iPhone: Go to Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar and paste the URL above.",
+        sec3_title: "3. Email Forwarding (IMAP Bot)",
+        sec3_subtitle: "Forward emails from schools, teachers, or clubs",
+        sec3_env_desc: "The background bot monitors the mailbox configured in your environment variables:",
+        sec3_forward_hint: "When you receive an email containing a week schedule (as a PDF attachment or directly in the email body), simply forward it to this address. The bot parses it and updates the dashboard automatically."
+      },
+      no: {
+        page_title: "Sett opp Apple Snarvei og Kalender – Ukeplan",
+        back_to_planner: "Tilbake til Ukeplan",
+        main_heading: "Apple-integrasjoner for Ukeplan",
+        intro_desc: "Siden familien bruker Apple-enheter, kan dere videresende skoleplaner rett fra Delingsarket i Mail, Safari eller Filer, og abonnere i Apple Kalender på iPhone, iPad, Mac og Apple Watch.",
+        sec1_title: "1. 'Del til Ukeplan' (Apple Snarvei)",
+        sec1_subtitle: "Del PDF-er og kamerafotografier rett til Ukeplan fra Mail, Filer, Fotos eller Kamera",
+        sec1_how: "Alternativt: bygg snarveien manuelt (hvis nedtasting ikke fungerer):",
+        sec1_step1: "Åpne <strong>Snarveier</strong> → trykk <strong>+</strong> øverst til høyre → <strong>Ny snarvei</strong>.",
+        sec1_step2: "Trykk på <strong>snarveinavnet øverst</strong> på skjermen for å åpne snarveidetaljene, deretter:",
+        sec1_step2a: "Sett navnet til <strong>'Del til Ukeplan'</strong> (og velg et ikon om du vil).",
+        sec1_step2b: "Slå på <strong>Vis i delingsarket</strong> (Show in Share Sheet).",
+        sec1_step2c: "Under <strong>Inndata</strong> (Input) → <strong>Mottak:</strong> (Receive:) huk av for <strong>Filer</strong> (Files) og <strong>Bilder</strong> (Images).",
+        sec1_step3: "Tilbake i redigeringsvinduet: trykk <strong>+</strong> (nederst til høyre) → søk på <strong>'HTTP'</strong> → legg til handlingen <strong>Send HTTP-forespørsel</strong> (Send HTTP Request):",
+        sec1_http_url: "URL:",
+        sec1_http_method: "Metode:",
+        sec1_http_body: "Brødtekst (Body):",
+        sec1_http_formdata: "Formdata (Form Data)",
+        sec1_http_add_field: "Trykk + for å legge til ett Felt (Field) per linje nedenfor.",
+        sec1_http_key: "Nøkkel (Key)",
+        sec1_http_val: "Verdi (Value)",
+        sec1_http_input: "Snarvei-inndata (Shortcut Input)",
+        sec1_step4: "Valgfritt: legg til handlingen <strong>Vis varsel</strong> (Show Notification) med teksten <strong>'Ukeplan oppdatert!'</strong>.",
+        sec1_step5: "Trykk <strong>Ferdig</strong> (Done). Nå kan dere dele: åpne en PDF eller et bilde i Mail, Filer eller Fotos → <strong>Del</strong> (Share) → <strong>'Del til Ukeplan'</strong>.",
+        sec1_url_note: "⚠️ URL-en ovenfor må være tilgjengelig fra telefonen: samme Wi-Fi-nettverk, og bruk serverens lokale IP (f.eks. <strong>http://192.168.1.50:8000/api/ingest</strong>) — ikke <code>localhost</code>. Hvis iOS spør om tilgang til <em>Lokalt nettverk</em>, tillat det.",
+        sec1_test_label: "Test snarveien etter oppsettet:",
+        sec1_test_btn: "Åpne i Snarveier",
+        sec1_test_hint: "Åpner Snarveier-appen og kjører 'Del til Ukeplan'. Fungerer først når snarveien er laget (steg 1–5 over).",
+        sec1_download_title: "Enkeltest: last ned ferdig snarvei (ett trykk)",
+        sec1_download_btn: "Last ned «Del til Ukeplan» (signert)",
+        sec1_download_step1: "Åpne filen (fra Filer-appen) → trykk <strong>Importer</strong>.",
+        sec1_download_step2a: "I Snarveier-appen bekreft at <strong>Send HTTP-forespørsel</strong> peker på",
+        sec1_download_step2b: "med <strong>POST</strong> + <strong>Formdata</strong> (file = Snarvei-inndata, channel = shortcut).",
+        sec1_download_step3: "Ferdig — del en PDF eller et bilde → <strong>Del</strong> → <strong>'Del til Ukeplan'</strong>.",
+        sec1_download_note: "Filen signeres via RoutineHubs offentlige signeringstjeneste og inneholder denne serveradressen. Flytter du serveren, laster du ned filen på nytt fra den nye adressen.",
+        signing_note: "Den nedlastede filen signeres av RoutineHubs offentlige signeringstjeneste (HubSign) – standardmåten å distribuere snarveier på. Er tjenesten nede, sender serveren en usignert fil (<code>.plist</code>) i stedet; signer den én gang på Mac med <code>shortcuts sign -i &lt;fil&gt;.plist -o Del-til-Ukeplan.shortcut -m anyone</code>, og importer deretter resultatet.",
+        sec4_title: "4. Del med resten av familien",
+        sec4_subtitle: "Lag snarveien én gang – alle andre importerer den med ett trykk",
+        sec4_intro: "Når snarveien finnes på én enhet, deler du den med familien:",
+        sec4_step1: "Åpne snarveien i Snarveier-appen → trykk på <strong>delingsikonet</strong> (øverst til høyre) → velg <strong>Del via iCloud</strong> → <strong>Kopier lenke</strong>.",
+        sec4_step2: "Send lenken til familien (i Meldinger, E-post, …). Når en familiemedlem trykker på lenken, åpnes Snarveier med en <strong>Legg til snarvei</strong>-knapp – ett trykk og den ligger i delingsarket.",
+        sec4_step3: "Alternativt: velg <strong>Del via AirDrop</strong> og velg den andre iPhone/iPad-en direkte.",
+        sec2_title: "2. Abonnement i Apple Kalender",
+        sec2_subtitle: "Se alle aktiviteter og utstyrspåminnelser på låseskjerm, Apple Watch og widgeter",
+        sec2_link_label: "Abonnementslenke for kalender:",
+        copy: "Kopier",
+        copied: "Kopiert til utklippstavlen!",
+        sec2_instructions: "På iPhone: Gå til Innstillinger → Kalender → Kontoer → Legg til konto → Annen → Legg til abonnementskalender, og lim inn lenken over.",
+        sec3_title: "3. Videresending på e-post (IMAP Bot)",
+        sec3_subtitle: "Videresend e-poster fra skolen eller idrettslaget",
+        sec3_env_desc: "Bakgrunnsboten overvåker innboksen du konfigurerer i miljøvariablene:",
+        sec3_forward_hint: "Når du mottar en e-post med ukeplan (som PDF-vedlegg eller i selve e-postteksten), videresend den til denne adressen for automatisk tolking."
+      }
+    };
+
+    function shortcutSetupApp() {
+      return {
+        lang: localStorage.getItem('ukeplan_lang') || 'no',
+        origin: window.location.origin,
+        shortcutName() {
+          return this.lang === 'no' ? 'Del til Ukeplan' : 'Share to Week Planner';
+        },
+
+        init() {},
+
+        t(key) {
+          return (setupTranslations[this.lang] && setupTranslations[this.lang][key]) || setupTranslations['en'][key] || key;
+        },
+
+        setLanguage(newLang) {
+          this.lang = newLang;
+          localStorage.setItem('ukeplan_lang', newLang);
+        },
+
+        copyCalLink() {
+          navigator.clipboard.writeText(this.origin + '/api/calendar.ics');
+          alert(this.t('copied'));
+        }
+      }
+    }
+  </script>
+</body>
+</html>

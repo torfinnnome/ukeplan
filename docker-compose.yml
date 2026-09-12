@@ -1,0 +1,49 @@
+services:
+  # 1. Local AI inference via CPU in Docker (official llama.cpp server)
+  # Exposes standard OpenAI-compatible REST API on port 8089
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: ukeplan-llm
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./models:/models
+    command: >
+      --hf-repo ${LLM_HF_REPO:-bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M}
+      --host 0.0.0.0
+      --port 8089
+      -c 4096
+      -t 4
+
+  # 2. Family Week Planner Web App & Ingestion API
+  web:
+    build: .
+    container_name: ukeplan-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/ukeplan.db}
+      - AI_ENGINE=${AI_ENGINE:-openai_compatible}
+      - AI_BASE_URL=${AI_BASE_URL:-http://llm:8089/v1}
+      - AI_MODEL=${AI_MODEL:-qwen2.5-7b-instruct}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - OCR_ENABLED=${OCR_ENABLED:-false}
+      - OCR_BASE_URL=${OCR_BASE_URL:-http://host.docker.internal:8080/v1}
+      - OCR_MODEL=${OCR_MODEL:-glm-ocr}
+      - OCR_API_KEY=${OCR_API_KEY:-not-needed}
+      - OCR_PDF_NATIVE=${OCR_PDF_NATIVE:-false}
+      - IMAP_ENABLED=${IMAP_ENABLED:-false}
+      - IMAP_HOST=${IMAP_HOST:-imap.example.com}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - IMAP_USER=${IMAP_USER:-ukeplan@example.com}
+      - IMAP_PASSWORD=${IMAP_PASSWORD:-}
+      - IMAP_FOLDER=${IMAP_FOLDER:-INBOX}
+      - IMAP_POLL_INTERVAL_SECONDS=${IMAP_POLL_INTERVAL_SECONDS:-120}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
