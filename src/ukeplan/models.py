@@ -9,6 +9,7 @@ class ItemType(str, Enum):
     GEAR = "gear"            # Things to remember/pack (e.g. gym kit, swimming gear, outdoor kit)
     TASK = "task"            # Homework or task (e.g. read pages 20-25, math sheet)
     NOTE = "note"            # General announcement or info (e.g. teacher planning day)
+    MIDDAG = "middag"        # What's for dinner (e.g. "Lasagne"); person = who is responsible
 
 class FamilyMemberBase(SQLModel):
     name: str

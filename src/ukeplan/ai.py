@@ -14,7 +14,7 @@ logger = logging.getLogger("ukeplan.ai")
 class ExtractedItem(BaseModel):
     title: str = Field(description="Kort beskrivelse av aktiviteten, utstyret eller oppgaven (på norsk)")
     description: Optional[str] = Field(default=None, description="Ytterligere detaljer, notater eller instruksjoner (på norsk)")
-    item_type: ItemType = Field(default=ItemType.EVENT, description="'event' for planlagte/hendelser med tid, 'gear' for ting som skal huskes/tas med (gymtøy, svømmetøy, uteskole, etc.), 'task' for lekser/frister, 'note' for informasjon")
+    item_type: ItemType = Field(default=ItemType.EVENT, description="'event' for planlagte/hendelser med tid, 'gear' for ting som skal huskes/tas med (gymtøy, svømmetøy, uteskole, etc.), 'task' for lekser/frister, 'note' for informasjon, 'middag' for hva som er til middag (person = hvem som lager det)")
     person: Optional[str] = Field(default=None, description="Navnet på barnet eller familiemedlemmet dette gjelder (f.eks. barnets navn eller 'Alle')")
     date: Optional[str] = Field(default=None, description="ISO-dato YYYY-MM-DD KUN hvis dokumentet eksplisitt oppgir en kalenderdato (f.eks. '14. september'), ellers null")
     day_of_week: Optional[int] = Field(default=None, description="1-7 (1=mandag ... 7=søndag) hvis elementet gjelder en bestemt ugedag (f.eks. 'onsdag'), ellers null")
@@ -116,6 +116,7 @@ Ekstraher alle konkrete ting og kategoriser dem strengt som:
 "event": Tidfestede hendelser, treninger, kamper, turer, foreldremøter, tannlege, etterårs-klubber.
 "task": Lektier, lesing eller oppgaver med frist (f.eks. les side 20-25, regneark).
 "note": Informasjon som planleggingsdager (skolen stengt), tema-uker, eller viktige beskjeder.
+"middag": Hva som er til middag (f.eks. lasagne, biff, boller). Sett "person" til familiemedlemmet som har ansvaret for å lage det, hvis det står noe om hvem som lager.
 Tildel hvert element til det aktuelle barnet eller familiemedlemmet (f.eks. '{example_person}', '{example_person2}').
 
 Ofte ligger det en timeplan i dokumentet, i tabellform. Noen ganger er overskriftene i tabellen vanskelige å tyde, men det er over hvit skrift på svart bakgrunn. VIKTIG: Prøv hardt å plassere hendelser på riktig dag.
@@ -290,7 +291,7 @@ async def parse_plan_text_with_llm(
 class CommandItem(BaseModel):
     title: str = Field(description="Kort tittel på norsk (f.eks. 'Sjakktrening')")
     description: Optional[str] = Field(default=None, description="Ytterligere detaljer på norsk")
-    item_type: ItemType = Field(default=ItemType.EVENT, description="'event' for hendelser/treninger, 'task' for lekser/oppgaver, 'gear' for ting som skal tas med, 'note' for informasjon")
+    item_type: ItemType = Field(default=ItemType.EVENT, description="'event' for hendelser/treninger, 'task' for lekser/oppgaver, 'gear' for ting som skal tas med, 'note' for informasjon, 'middag' for hva som er til middag (person = hvem som lager det)")
     person: Optional[str] = Field(default=None, description="Navnet på familiemedlemmet dette gjelder, hvis nevnt")
     date: Optional[str] = Field(default=None, description="ISO-dato YYYY-MM-DD KUN hvis kommandoen eksplisitt oppgir en kalenderdato (f.eks. '12. september'), ellers null")
     day_of_week: Optional[int] = Field(default=None, description="1-7 (1=mandag ... 7=søndag) hvis en ukedag nevnes (f.eks. 'onsdag'), ellers null")
@@ -335,12 +336,15 @@ Eksempler:
 - "Sigrid har sjakktrening hver onsdag 18:00-19:50" -> étt event: title="Sjakktrening", person="Sigrid", day_of_week=3, start_time="18:00", end_time="19:50", recurring_weekly=true, date=null.
 - "Fotballtrening fredag 17:30" (uten "hver") -> ett engangsevent på den kommende fredagen: day_of_week=5, date=null, recurring_weekly=false.
 - "Berit har tannlege 12. september kl 09:30" -> date="{now.year}-09-12" (nåværende år med mindre annet år nevnes), recurring_weekly=false.
+- "Middag i morgen er lasagne" (eller "Far lager lasagne i kveld") -> ett middag-item: item_type="middag", title="Lasagne", person="Far" hvis en som lager det nevnes, recurring_weekly=false (dato: i kveld -> date=null, i morgen -> day_of_week for morgendagen).
 
 Regler:
 - "person": match til en av de registrerte familiemedlemmene hvis et navn nevnes; ellers null.
 - "recurring_weekly": true KUN hvis kommandoen sier "hver"/"all"/"every" + ukedag. Da MÅ "day_of_week" settes.
 - "date": KUN hvis en eksplisitt kalenderdato er nevnt (f.eks. "12. september"), som ISO YYYY-MM-DD. Anta nåværende år ({now.year}) med mindre annet år er nevnt. Ellers null.
 - "day_of_week": 1-7 (1=mandag, 2=tirsdag, 3=onsdag, 4=torsdag, 5=fredag, 6=lørdag, 7=søndag) hvis en ukedag nevnes, ellers null.
+- "i morgen"/"tomorrow": beregn den konkrete ukedagen ut fra i dag ({now.isoweekday()} = {weekday_names[now.isoweekday() - 1]}) og sett "day_of_week" til morgendagens ukedag (eller ISO-dato hvis du er sikker på den).
+
 - Tider i HH:MM-format. "18:00-19:50" gir start_time="18:00", end_time="19:50".
 - Hvis kommandoen IKKE handler om å planlegge noe (spørsmål, smalltalk, uforståelig), returner items=[] og en kort norsk setning i "summary" som forklarer dette.
 - "summary": én kort setning på norsk som beskriver hva som blir lagt til (eller hvorfor ingenting legges til).

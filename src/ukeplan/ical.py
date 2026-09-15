@@ -25,6 +25,7 @@ def generate_ical_feed(items: List[PlanItem], cal_name: str = "Family Week Plann
             ItemType.GEAR: "🎒",
             ItemType.TASK: "📝",
             ItemType.NOTE: "📌",
+            ItemType.MIDDAG: "🍽️",
         }.get(item.item_type, "📅")
 
         ev.add("summary", f"{type_emoji} {summary_prefix}{item.title}")
