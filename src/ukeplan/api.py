@@ -194,6 +194,26 @@ def toggle_item_completed(
     return item
 
 
+class MoveIn(SQLModel):
+    date: datetime.date
+
+
+@api_router.post("/items/{item_id}/move", response_model=PlanItem)
+def move_item(item_id: int, move_in: MoveIn, session: Session = Depends(get_session)):
+    """Move an item to a new date. Weekly recurring items shift weekday with the move."""
+    item = session.get(PlanItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    item.date = move_in.date
+    if item.recurring_weekly and item.day_of_week:
+        item.day_of_week = move_in.date.isoweekday()
+    item.updated_at = datetime.datetime.now(datetime.timezone.utc)
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
 class CommandIn(SQLModel):
     text: str
 

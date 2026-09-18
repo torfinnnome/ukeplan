@@ -68,6 +68,53 @@ def test_crud_plan_items():
         assert del_res.status_code == 200
 
 
+def test_move_item_to_new_date():
+    """Move endpoint relocates a non-recurring item to the requested date."""
+    with TestClient(app) as client:
+        created = client.post("/api/items", json={
+            "title": "Move Me",
+            "item_type": "event",
+            "date": "2026-09-08",
+        }).json()
+        item_id = created["id"]
+
+        res = client.post(f"/api/items/{item_id}/move", json={"date": "2026-09-11"})
+        assert res.status_code == 200
+        assert res.json()["date"] == "2026-09-11"
+
+        listed = client.get("/api/items?start_date=2026-09-07&end_date=2026-09-13").json()
+        moved = next(it for it in listed if it["id"] == item_id)
+        assert moved["date"] == "2026-09-11"
+
+        client.delete(f"/api/items/{item_id}")
+
+
+def test_move_recurring_item_shifts_day_of_week():
+    """Moving a weekly recurring item also shifts its weekday so it renders on the new day."""
+    with TestClient(app) as client:
+        created = client.post("/api/items", json={
+            "title": "Sjakktrening",
+            "item_type": "event",
+            "date": "2026-09-09",  # Wednesday
+            "recurring_weekly": True,
+            "day_of_week": 3,
+        }).json()
+        item_id = created["id"]
+
+        res = client.post(f"/api/items/{item_id}/move", json={"date": "2026-09-11"})  # Friday
+        assert res.status_code == 200
+        assert res.json()["date"] == "2026-09-11"
+        assert res.json()["day_of_week"] == 5
+
+        client.delete(f"/api/items/{item_id}")
+
+
+def test_move_missing_item_returns_404():
+    with TestClient(app) as client:
+        res = client.post("/api/items/999999/move", json={"date": "2026-09-11"})
+        assert res.status_code == 404
+
+
 def test_clean_json_response_helper():
     markdown_json = "```json\n{\"week_number\": 37, \"items\": []}\n```"
     cleaned = clean_json_response(markdown_json)
