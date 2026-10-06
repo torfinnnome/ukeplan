@@ -58,6 +58,18 @@ podman compose up -d
 
 One note: the `host.docker.internal:host-gateway` entry in the compose file is a Docker idiom used only so the app can reach an OCR endpoint running on the host (disabled by default via `OCR_ENABLED=false`). Modern rootless Podman adds `host.docker.internal` to the container automatically, so nothing needs changing. If an older Python `podman-compose` errors on that line, delete the `extra_hosts` entry (the hostname still resolves) or point `OCR_BASE_URL` at `http://host.containers.internal:8080/v1` instead.
 
+### Tuning the AI timeout
+
+Every AI call (document parsing and natural-language commands) has a read timeout of **300 seconds**, configurable with `AI_TIMEOUT_SECONDS` (env or `.env`):
+
+```ini
+AI_TIMEOUT_SECONDS=600
+```
+
+This is the budget for waiting on the AI endpoint's response — it matters most when you point `AI_BASE_URL` at a remote or shared endpoint you do not control, where a long week-plan document can queue behind other traffic. Raise it if you see `504` responses or `ReadTimeout` in the app logs; the connect timeout stays at 10 seconds so an unreachable endpoint still fails fast.
+
+A timeout is reported as `504 Gateway Timeout` in the web UI and in the ingest log, and the document is kept under **Documents** so you can retry it. Note the endpoint may still be working on the request after the client gives up — raising the timeout is usually better than retrying, which doubles the load.
+
 ---
 
 ## Apple Devices Setup

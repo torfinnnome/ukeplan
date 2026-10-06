@@ -1,6 +1,7 @@
 import datetime
 import logging
 from typing import List, Optional
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, Response
 from sqlmodel import Session, select, SQLModel
@@ -9,7 +10,7 @@ from ukeplan.models import PlanItem, IngestLog, PlanItemBase, FamilyMember, Fami
 from ukeplan.config import settings
 from ukeplan.extractor import extract_text_and_images_from_bytes
 from ukeplan.storage import store_document, document_path, remove_stored_file, mime_for
-from ukeplan.ai import parse_plan_text_with_llm, resolve_item_date, infer_person_from_items, parse_command_with_llm, next_weekday_date
+from ukeplan.ai import parse_plan_text_with_llm, resolve_item_date, infer_person_from_items, parse_command_with_llm, next_weekday_date, format_timeout_error
 from ukeplan.ical import generate_ical_feed
 
 logger = logging.getLogger("ukeplan.api")
@@ -232,6 +233,10 @@ async def run_command(cmd: CommandIn, session: Session = Depends(get_session)):
 
     try:
         result = await parse_command_with_llm(text=cmd.text, family_members=members_list)
+    except httpx.TimeoutException as e:
+        detail = format_timeout_error(e)
+        logger.exception(f"Command parse timed out for '{cmd.text}': {detail}")
+        raise HTTPException(status_code=504, detail=detail)
     except Exception as e:
         logger.exception(f"Command parse failed for '{cmd.text}': {e}")
         raise HTTPException(status_code=500, detail=f"Could not process command: {str(e)}")
@@ -397,6 +402,14 @@ async def ingest_document(
             "items": saved_items,
         }
 
+    except httpx.TimeoutException as e:
+        detail = format_timeout_error(e)
+        logger.exception(f"--- [INGEST TIMEOUT] Failed to ingest '{filename}': {detail} ---")
+        log_entry.status = "failed"
+        log_entry.error_message = detail
+        session.add(log_entry)
+        session.commit()
+        raise HTTPException(status_code=504, detail=detail)
     except Exception as e:
         logger.exception(f"--- [INGEST ERROR] Failed to ingest '{filename}': {e} ---")
         log_entry.status = "failed"

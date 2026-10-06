@@ -3,13 +3,14 @@ import email
 from email import policy
 import imaplib
 import logging
+import httpx
 from typing import Optional
 from sqlmodel import Session, select
 from ukeplan.config import settings
 from ukeplan.db import engine
 from ukeplan.models import PlanItem, IngestLog, FamilyMember, Document
 from ukeplan.extractor import extract_text_and_images_from_bytes
-from ukeplan.ai import parse_plan_text_with_llm, resolve_item_date, infer_person_from_items
+from ukeplan.ai import parse_plan_text_with_llm, resolve_item_date, infer_person_from_items, format_timeout_error
 from ukeplan.storage import store_document, mime_for
 import datetime
 
@@ -100,6 +101,13 @@ async def process_email_message(raw_bytes: bytes):
                         count += 1
                     log_entry.status = "success"
                     log_entry.extracted_items_count = count
+                    session.add(log_entry)
+                    session.commit()
+                except httpx.TimeoutException as e:
+                    detail = format_timeout_error(e)
+                    logger.error(f"AI-tidsavbrudd for e-postvedlegg {filename}: {detail}")
+                    log_entry.status = "failed"
+                    log_entry.error_message = detail
                     session.add(log_entry)
                     session.commit()
                 except Exception as e:

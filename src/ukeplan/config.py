@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     ai_base_url: str = "http://localhost:8089/v1"
     ai_model: str = "qwen2.5-7b-instruct"
     ai_api_key: Optional[str] = "not-needed"
+    # Read timeout for every AI extraction/command call. The read budget is the
+    # one that matters for a slow endpoint you do not control; connect/pool stay
+    # short so an unreachable endpoint still fails fast.
+    ai_timeout_seconds: float = 300.0
 
     # OCR stage: any OpenAI-compatible vision endpoint used to transcribe every
     # PDF page and photo upload to markdown (e.g. llama.cpp serving GLM-OCR).

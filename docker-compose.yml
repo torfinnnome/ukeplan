@@ -33,6 +33,7 @@ services:
       - AI_BASE_URL=${AI_BASE_URL:-http://llm:8089/v1}
       - AI_MODEL=${AI_MODEL:-qwen2.5-7b-instruct}
       - AI_API_KEY=${AI_API_KEY:-}
+      - AI_TIMEOUT_SECONDS=${AI_TIMEOUT_SECONDS:-300}
       - OCR_ENABLED=${OCR_ENABLED:-false}
       - OCR_BASE_URL=${OCR_BASE_URL:-http://host.docker.internal:8080/v1}
       - OCR_MODEL=${OCR_MODEL:-glm-ocr}

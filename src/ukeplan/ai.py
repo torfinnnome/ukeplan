@@ -1,4 +1,5 @@
 import json
+import time
 import re
 import datetime
 from typing import List, Optional
@@ -180,6 +181,32 @@ def clean_json_response(raw: str) -> dict:
     return json.loads(raw)
 
 
+def _ai_timeout() -> httpx.Timeout:
+    """Timeout for AI calls: generous read budget (AI_TIMEOUT_SECONDS), short connect/pool."""
+    return httpx.Timeout(settings.ai_timeout_seconds, connect=10.0, pool=10.0)
+
+
+def format_timeout_error(exc: httpx.TimeoutException) -> str:
+    """Human-readable message for an AI read timeout (httpx exceptions stringify empty)."""
+    return (
+        f"The AI endpoint did not respond within {settings.ai_timeout_seconds:g} seconds "
+        f"({type(exc).__name__}). The model is likely still working on the request; raise "
+        f"AI_TIMEOUT_SECONDS if this endpoint needs more time, then retry."
+    )
+
+
+async def _post_with_timing(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    """POST with elapsed-time logging so a slow AI endpoint is visible in the logs."""
+    started = time.perf_counter()
+    try:
+        resp = await client.post(url, **kwargs)
+    except httpx.HTTPError as exc:
+        logger.error(f"AI request to {url} failed after {time.perf_counter() - started:.1f}s: {type(exc).__name__}")
+        raise
+    logger.info(f"AI request to {url} returned {resp.status_code} after {time.perf_counter() - started:.1f}s")
+    return resp
+
+
 async def _llm_chat(
     client: httpx.AsyncClient,
     system_text: str,
@@ -207,7 +234,7 @@ async def _llm_chat(
                 "num_ctx": 4096,
             },
         }
-        resp = await client.post(ollama_url, json=payload)
+        resp = await _post_with_timing(client, ollama_url, json=payload)
         resp.raise_for_status()
         data = resp.json()
         return data.get("message", {}).get("content", "{}")
@@ -227,8 +254,7 @@ async def _llm_chat(
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
     }
-    resp = await client.post(url, headers=headers, json=payload)
-    logger.info(f"AI response status: {resp.status_code}")
+    resp = await _post_with_timing(client, url, headers=headers, json=payload)
     if resp.status_code != 200:
         logger.error(f"AI request failed with status {resp.status_code}: {resp.text}")
         raise ValueError(f"AI API error ({resp.status_code}): {resp.text}")
@@ -265,7 +291,7 @@ async def parse_plan_text_with_llm(
 
     should_close_client = False
     if client is None:
-        client = httpx.AsyncClient(timeout=120.0)
+        client = httpx.AsyncClient(timeout=_ai_timeout())
         should_close_client = True
 
     try:
@@ -383,7 +409,7 @@ async def parse_command_with_llm(
 
     should_close_client = False
     if client is None:
-        client = httpx.AsyncClient(timeout=120.0)
+        client = httpx.AsyncClient(timeout=_ai_timeout())
         should_close_client = True
 
     try:
