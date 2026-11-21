@@ -51,6 +51,31 @@ class Settings(BaseSettings):
     # one that matters for a slow endpoint you do not control; connect/pool stay
     # short so an unreachable endpoint still fails fast.
     ai_timeout_seconds: float = 300.0
+    # Explicit reasoning_effort sent with every OpenAI-compatible request. Some
+    # gateways (e.g. OmniRoute) inject a default reasoning_effort for known
+    # reasoning models, and the upstream API can reject the resulting
+    # combination (e.g. "Function tools with reasoning_effort are not
+    # supported"). Setting this (e.g. "none") overrides the gateway default and
+    # also makes reasoning models answer faster. Leave unset for endpoints that
+    # only accept plain chat completions.
+    ai_reasoning_effort: Optional[str] = None
+
+    # Send the uploaded document itself (PDF or photo) to the LLM as a
+    # vision/multimodal input instead of extracting its text first. This
+    # skips the OCR stage entirely and works when the model understands
+    # documents natively (e.g. via OmniRoute). The document is sent whole as a
+    # base64 data URL in one call. When disabled (default) the existing
+    # pipeline runs: OCR / digital text layer, then the text-only extraction
+    # LLM.
+    ai_direct_document: bool = False
+    # How the whole document is sent when ai_direct_document is on:
+    # true  -> PDFs go in as a "file" content part (modern OpenAI schema);
+    #          images as image_url data URLs. Requires the endpoint to accept
+    #          file parts (e.g. gpt-6.1-terra via OmniRoute).
+    # false -> PDFs are rendered to 150 DPI PNGs (capped at 8 pages) and sent
+    #          as image_url data URLs instead, for vision endpoints that only
+    #          accept images (e.g. llama.cpp, which rejects application/pdf).
+    ai_direct_pdf_native: bool = True
 
     # OCR stage: any OpenAI-compatible vision endpoint used to transcribe every
     # PDF page and photo upload to markdown (e.g. llama.cpp serving GLM-OCR).

@@ -70,6 +70,29 @@ This is the budget for waiting on the AI endpoint's response — it matters most
 
 A timeout is reported as `504 Gateway Timeout` in the web UI and in the ingest log, and the document is kept under **Documents** so you can retry it. Note the endpoint may still be working on the request after the client gives up — raising the timeout is usually better than retrying, which doubles the load.
 
+### Pointing at a gateway (e.g. OmniRoute)
+
+If `AI_BASE_URL` is a gateway such as [OmniRoute](https://github.com/animeetb/omniroute) that fronts a remote reasoning model (e.g. `gpt-6.1-terra`), set:
+
+```ini
+AI_REASONING_EFFORT=none
+```
+
+Some gateways inject a default `reasoning_effort` for known reasoning models, and upstream APIs can reject the resulting request with `Function tools with reasoning_effort are not supported ...` — setting `reasoning_effort` explicitly in the app's request overrides the gateway default and clears the error. `none` also makes reasoning models answer faster, which suits extraction well. Leave the variable unset for plain OpenAI-compatible servers (llama.cpp, vLLM, ...) that ignore or reject the field.
+
+### Direct document mode (skip OCR / text extraction)
+
+By default, uploads go through a text stage first — OCR (when enabled) or the PDF's digital text layer — and only the resulting text is sent to the extraction LLM. Some models read documents natively (e.g. `gpt-6.1-terra` via OmniRoute accepts PDF and photo uploads in one call). To send the uploaded PDF or photo straight to the LLM and skip the text stage entirely, set:
+
+```ini
+AI_DIRECT_DOCUMENT=true
+```
+
+- PDFs are sent whole as a base64 `file` part (modern OpenAI schema) when `AI_DIRECT_PDF_NATIVE=true` (the default). For vision endpoints that only accept images (e.g. llama.cpp, which rejects `application/pdf`), set `AI_DIRECT_PDF_NATIVE=false` and the PDF's pages are rendered to 150 DPI PNGs (max 8) and sent as image parts instead.
+- Photos are re-encoded to PNG and sent as one image part.
+- When direct mode is on, the OCR stage is not used at all for PDFs/photos, and text-file uploads still go through the normal text path.
+- Ingestion still fails (with the file kept under **Documents** for retry) if the endpoint rejects the direct request — e.g. a non-vision model behind `AI_BASE_URL`.
+
 ---
 
 ## Apple Devices Setup

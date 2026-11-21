@@ -8,7 +8,7 @@ from sqlmodel import Session, select, SQLModel
 from ukeplan.db import get_session
 from ukeplan.models import PlanItem, IngestLog, PlanItemBase, FamilyMember, FamilyMemberBase, Document, DocumentUpdate, SchoolSchedule
 from ukeplan.config import settings
-from ukeplan.extractor import extract_text_and_images_from_bytes
+from ukeplan.extractor import extract_text_and_images_from_bytes, is_document_filename
 from ukeplan.storage import store_document, document_path, remove_stored_file, mime_for
 from ukeplan.ai import parse_plan_text_with_llm, resolve_item_date, infer_person_from_items, parse_command_with_llm, next_weekday_date, format_timeout_error
 from ukeplan.ical import generate_ical_feed
@@ -338,19 +338,31 @@ async def ingest_document(
         session.commit()
         session.refresh(doc_record)
 
-        doc_data = await extract_text_and_images_from_bytes(content, filename)
-        text = doc_data["text"]
-        logger.info(f"Document extraction finished. Text length: {len(text)} chars, page_count: {doc_data.get('page_count')}")
-        if not text:
-            logger.warning(f"No readable text found in document: '{filename}'")
-            raise ValueError("No readable text found in the document.")
-        log_entry.raw_preview = (text + "...") if len(text) > 400 else text
-        logger.info(f"Raw text preview:\n{text}...")
-        extracted_plan = await parse_plan_text_with_llm(
-            text=text,
-            target_person=person,
-            family_members=members_list,
-        )
+        if settings.ai_direct_document and is_document_filename(filename):
+            # The model reads the document directly (PDF/photo) — no OCR, no text extraction.
+            logger.info(f"Direct-document mode: sending '{filename}' to the LLM without text extraction")
+            log_entry.raw_preview = f"[direct document: {filename}]"
+            extracted_plan = await parse_plan_text_with_llm(
+                text="",
+                target_person=person,
+                family_members=members_list,
+                document_data=content,
+                document_filename=filename,
+            )
+        else:
+            doc_data = await extract_text_and_images_from_bytes(content, filename)
+            text = doc_data["text"]
+            logger.info(f"Document extraction finished. Text length: {len(text)} chars, page_count: {doc_data.get('page_count')}")
+            if not text:
+                logger.warning(f"No readable text found in document: '{filename}'")
+                raise ValueError("No readable text found in the document.")
+            log_entry.raw_preview = (text + "...") if len(text) > 400 else text
+            logger.info(f"Raw text preview:\n{text}...")
+            extracted_plan = await parse_plan_text_with_llm(
+                text=text,
+                target_person=person,
+                family_members=members_list,
+            )
 
         # Tag the archived document with the plan's week and (if known) the child.
         doc_record.week_number = extracted_plan.week_number

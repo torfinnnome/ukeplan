@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from ukeplan.config import settings
 from ukeplan.db import engine
 from ukeplan.models import PlanItem, IngestLog, FamilyMember, Document
-from ukeplan.extractor import extract_text_and_images_from_bytes
+from ukeplan.extractor import extract_text_and_images_from_bytes, is_document_filename
 from ukeplan.ai import parse_plan_text_with_llm, resolve_item_date, infer_person_from_items, format_timeout_error
 from ukeplan.storage import store_document, mime_for
 import datetime
@@ -46,12 +46,22 @@ async def process_email_message(raw_bytes: bytes):
         if attachments:
             for filename, payload in attachments:
                 logger.info(f"Fant vedlegg: {filename}")
-                doc_data = await extract_text_and_images_from_bytes(payload, filename)
-                text = doc_data["text"] or text_body
-                if not text:
-                    continue
-                preview = text[:400]
-                parse_call = parse_plan_text_with_llm(text=text, family_members=members_list)
+                if settings.ai_direct_document and is_document_filename(filename):
+                    # The model reads the attachment directly (PDF/photo) — no OCR, no text extraction.
+                    preview = f"[direct document: {filename}]"
+                    parse_call = parse_plan_text_with_llm(
+                        text="",
+                        family_members=members_list,
+                        document_data=payload,
+                        document_filename=filename,
+                    )
+                else:
+                    doc_data = await extract_text_and_images_from_bytes(payload, filename)
+                    text = doc_data["text"] or text_body
+                    if not text:
+                        continue
+                    preview = text[:400]
+                    parse_call = parse_plan_text_with_llm(text=text, family_members=members_list)
 
                 log_entry = IngestLog(
                     source_channel="email",

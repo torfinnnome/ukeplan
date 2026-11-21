@@ -1,3 +1,4 @@
+import base64
 import io
 import logging
 import pymupdf as fitz
@@ -13,6 +14,22 @@ logger = logging.getLogger("ukeplan.extractor")
 pillow_heif.register_heif_opener()
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif")
+
+PDF_MIME = "application/pdf"
+IMAGE_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+}
+
+
+def is_document_filename(filename: str) -> bool:
+    """True for uploads the direct-document mode can send to the LLM as-is (PDF or photo)."""
+    lower_fn = filename.lower()
+    return lower_fn.endswith(".pdf") or any(lower_fn.endswith(ext) for ext in IMAGE_EXTENSIONS)
 
 # Max pages sent through the OCR stage (keeps payloads/inference bounded).
 MAX_OCR_PAGES = 8
@@ -48,6 +65,43 @@ def pdf_page_images(data: bytes, filename: str) -> list[bytes]:
         images.append(pix.tobytes("png"))
     logger.info(f"Rendered {len(images)} page image(s) from PDF '{filename}'")
     return images
+
+
+def build_document_media_parts(data: bytes, filename: str) -> list[dict]:
+    """
+    Build OpenAI-style content parts for sending a document directly to a
+    multimodal LLM (no OCR / text-extraction stage).
+
+    - PDF: the whole file as a single "file" content part when
+      settings.ai_direct_pdf_native; otherwise its pages rendered to 150 DPI
+      PNGs (capped at MAX_OCR_PAGES) as image_url parts for vision endpoints
+      that only accept images.
+    - Photo / image (.png/.jpg/.jpeg/.webp/.heic/.heif): re-encoded as one
+      PNG image_url part.
+    """
+    lower_fn = filename.lower()
+
+    if lower_fn.endswith(".pdf"):
+        if settings.ai_direct_pdf_native:
+            b64 = base64.b64encode(data).decode()
+            logger.info(f"Direct-document: sending whole PDF '{filename}' as a file part ({len(data)} bytes)")
+            return [{
+                "type": "file",
+                "file": {"filename": filename, "file_data": f"data:{PDF_MIME};base64,{b64}"},
+            }]
+        images = pdf_page_images(data, filename)
+        parts = [{
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"},
+        } for img in images]
+        logger.info(f"Direct-document: sending PDF '{filename}' as {len(parts)} rendered page image(s)")
+        return parts
+
+    png = render_photo_image(data, filename)
+    return [{
+        "type": "image_url",
+        "image_url": {"url": f"data:image/png;base64,{base64.b64encode(png).decode()}"},
+    }]
 
 
 async def extract_text_and_images_from_bytes(data: bytes, filename: str) -> dict:

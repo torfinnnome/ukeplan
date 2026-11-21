@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import datetime
+import json
 import pytest
 from fastapi.testclient import TestClient
 from ukeplan import app
@@ -815,3 +816,206 @@ def test_purge_stale_documents(tmp_path, monkeypatch):
             session.delete(doc)
         session.commit()
     (tmp_path / recent_name).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Direct-document mode (send the PDF/photo straight to the LLM, no OCR/text stage)
+# ---------------------------------------------------------------------------
+
+DIRECT_PLAN_JSON = {
+    "week_number": 48,
+    "year": 2026,
+    "summary": "Ukeplan for 1A, uke 48",
+    "items": [
+        {
+            "title": "Fotballtrening",
+            "description": None,
+            "item_type": "event",
+            "person": "Ann",
+            "date": None,
+            "day_of_week": 1,
+            "start_time": "17:00",
+            "end_time": "18:30",
+            "location": None,
+        }
+    ],
+}
+
+
+def _direct_pdf_bytes() -> bytes:
+    import pymupdf as fitz
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text((72, 100), "UKE 48", fontsize=20)
+    doc.insert_page(1)
+    return doc.tobytes()
+
+
+class _DirectFakeResponse:
+    status_code = 200
+    text = "ok"
+
+    def json(self):
+        return {"choices": [{"message": {"content": json.dumps(DIRECT_PLAN_JSON)}}]}
+
+
+class _DirectFakeClient:
+    def __init__(self, *args, **kwargs):
+        self.calls = []
+
+    async def post(self, url, **kwargs):
+        self.calls.append({"url": url, **kwargs})
+        return _DirectFakeResponse()
+
+    async def aclose(self):
+        pass
+
+
+def test_direct_document_pdf_payload(monkeypatch):
+    """Direct mode: whole PDF sent as one base64 file part + text part, JSON mode and reasoning_effort preserved."""
+    from ukeplan import ai
+    from ukeplan.config import settings
+
+    monkeypatch.setattr(settings, "ai_direct_document", True)
+    monkeypatch.setattr(settings, "ai_direct_pdf_native", True)
+    monkeypatch.setattr(settings, "ai_reasoning_effort", "none")
+    monkeypatch.setattr(settings, "ai_engine", "openai_compatible")
+
+    pdf = _direct_pdf_bytes()
+    client = _DirectFakeClient()
+    asyncio.run(ai.parse_plan_text_with_llm(
+        text="",
+        document_data=pdf,
+        document_filename="uke48.pdf",
+        family_members=[{"name": "Ann", "school_class": "1A"}],
+        client=client,
+    ))
+    assert len(client.calls) == 1
+    call = client.calls[0]
+    payload = call["json"]
+    assert payload["response_format"] == {"type": "json_object"}
+    assert payload["reasoning_effort"] == "none"
+    content = payload["messages"][1]["content"]
+    assert content[0]["type"] == "file"
+    assert content[0]["file"]["filename"] == "uke48.pdf"
+    data_url = content[0]["file"]["file_data"]
+    assert data_url.startswith("data:application/pdf;base64,")
+    assert base64.b64decode(data_url.split(",", 1)[1]) == pdf
+    assert content[1]["type"] == "text"
+    assert "ukeplan" in content[1]["text"].lower()
+
+
+def test_direct_document_pdf_rendered_pages_payload(monkeypatch):
+    """Direct mode with ai_direct_pdf_native=False: PDF rendered to PNG page images (image_url parts)."""
+    from ukeplan import ai
+    from ukeplan.config import settings
+
+    monkeypatch.setattr(settings, "ai_direct_document", True)
+    monkeypatch.setattr(settings, "ai_direct_pdf_native", False)
+    monkeypatch.setattr(settings, "ai_engine", "openai_compatible")
+
+    pdf = _direct_pdf_bytes()  # 2 pages
+    client = _DirectFakeClient()
+    asyncio.run(ai.parse_plan_text_with_llm(text="", document_data=pdf, document_filename="uke48.pdf", client=client))
+    content = client.calls[0]["json"]["messages"][1]["content"]
+    assert [p["type"] for p in content[:-1]] == ["image_url", "image_url"]
+    for part in content[:-1]:
+        assert part["image_url"]["url"].startswith("data:image/png;base64,")
+        assert base64.b64decode(part["image_url"]["url"].split(",", 1)[1])[:8] == b"\x89PNG\r\n\x1a\n"
+    assert content[-1]["type"] == "text"
+
+
+def test_direct_document_photo_payload(monkeypatch):
+    """Direct mode: photo re-encoded as a single PNG image_url part."""
+    import io
+    from PIL import Image
+    from ukeplan import ai
+    from ukeplan.config import settings
+
+    monkeypatch.setattr(settings, "ai_direct_document", True)
+    monkeypatch.setattr(settings, "ai_engine", "openai_compatible")
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (200, 30, 30)).save(buf, format="JPEG")
+    client = _DirectFakeClient()
+    asyncio.run(ai.parse_plan_text_with_llm(text="", document_data=buf.getvalue(), document_filename="plan.jpg", client=client))
+    content = client.calls[0]["json"]["messages"][1]["content"]
+    assert len(content) == 2
+    assert content[0]["type"] == "image_url"
+    assert content[0]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert content[1]["type"] == "text"
+
+
+def test_direct_document_disabled_sends_text_only(monkeypatch):
+    """Default (direct mode off): user content stays a plain text string, no media parts."""
+    from ukeplan import ai
+    from ukeplan.config import settings
+
+    monkeypatch.setattr(settings, "ai_direct_document", False)
+    monkeypatch.setattr(settings, "ai_engine", "openai_compatible")
+
+    client = _DirectFakeClient()
+    asyncio.run(ai.parse_plan_text_with_llm(text="UKE 48 fotball", document_data=b"%PDF-1.4", document_filename="x.pdf", client=client))
+    content = client.calls[0]["json"]["messages"][1]["content"]
+    assert isinstance(content, str)
+    assert "UKE 48 fotball" in content
+
+
+def test_ingest_direct_document_e2e(tmp_path, monkeypatch):
+    """API /api/ingest in direct mode: PDF bytes go to the LLM as a file part, no OCR/text extraction, items saved."""
+    import pymupdf as fitz
+    from ukeplan import api as api_mod, ai as ai_mod
+    from ukeplan.config import settings
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "ai_direct_document", True)
+    monkeypatch.setattr(settings, "ai_direct_pdf_native", True)
+    monkeypatch.setattr(settings, "ai_reasoning_effort", "none")
+    monkeypatch.setattr(settings, "ai_base_url", "http://fake-llm:20128/v1")
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+
+    fake_clients: list[_DirectFakeClient] = []
+
+    def fake_async_client(*args, **kwargs):
+        c = _DirectFakeClient()
+        fake_clients.append(c)
+        return c
+
+    monkeypatch.setattr(ai_mod.httpx, "AsyncClient", fake_async_client)
+    monkeypatch.setattr(api_mod, "extract_text_and_images_from_bytes", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("text extraction must be skipped in direct mode")))
+
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text((72, 100), "Ukeplan uke 48", fontsize=20)
+    pdf_bytes = doc.tobytes()
+
+    with TestClient(app) as client:
+        up = client.post(
+            "/api/ingest",
+            files={"file": ("uke48.pdf", pdf_bytes, "application/pdf")},
+            data={"person": "Ann", "channel": "web"},
+        )
+        assert up.status_code == 200, up.text
+        assert up.json()["items_count"] == 1
+
+    assert len(fake_clients) == 1
+    call = fake_clients[0].calls[0]
+    assert call["url"] == "http://fake-llm:20128/v1/chat/completions"
+    payload = call["json"]
+    content = payload["messages"][1]["content"]
+    assert content[0]["type"] == "file"
+    assert base64.b64decode(content[0]["file"]["file_data"].split(",", 1)[1]) == pdf_bytes
+    assert content[1]["type"] == "text"
+    assert payload["reasoning_effort"] == "none"
+    assert payload["response_format"] == {"type": "json_object"}
+
+    # Cleanup: remove the row(s) this test created from the shared test DB
+    from sqlmodel import Session, select
+    from ukeplan.db import engine
+    from ukeplan.models import Document
+    with Session(engine) as session:
+        for item in session.exec(select(PlanItem).where(PlanItem.source_filename == "uke48.pdf")).all():
+            session.delete(item)
+        for doc in session.exec(select(Document).where(Document.filename == "uke48.pdf")).all():
+            session.delete(doc)
+        session.commit()

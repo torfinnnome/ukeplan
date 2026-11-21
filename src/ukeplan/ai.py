@@ -211,10 +211,17 @@ async def _llm_chat(
     client: httpx.AsyncClient,
     system_text: str,
     user_text: str,
+    user_content: Optional[list] = None,
 ) -> str:
     """
     One chat turn against the configured AI engine (OpenAI-compatible server or Ollama).
     Returns the raw model content.
+
+    user_content, when given, is a list of OpenAI-style content parts (e.g. a
+    file or image_url part plus a text part) and replaces the plain user_text
+    string for the OpenAI-compatible engine — used to send a document
+    directly to a multimodal model. The Ollama engine is text-only and always
+    uses user_text.
     """
     logger.info(f"Sending extraction request to AI engine: {settings.ai_engine}")
 
@@ -249,11 +256,13 @@ async def _llm_chat(
         "model": settings.ai_model,
         "messages": [
             {"role": "system", "content": system_text},
-            {"role": "user", "content": user_text},
+            {"role": "user", "content": user_text if user_content is None else user_content},
         ],
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
     }
+    if settings.ai_reasoning_effort:
+        payload["reasoning_effort"] = settings.ai_reasoning_effort
     resp = await _post_with_timing(client, url, headers=headers, json=payload)
     if resp.status_code != 200:
         logger.error(f"AI request failed with status {resp.status_code}: {resp.text}")
@@ -274,20 +283,44 @@ def _finalize_plan(raw_content: str) -> ExtractedWeekPlan:
 
 
 async def parse_plan_text_with_llm(
-    text: str,
+    text: str = "",
     target_person: Optional[str] = None,
     family_members: Optional[List[dict]] = None,
     client: Optional[httpx.AsyncClient] = None,
+    document_data: Optional[bytes] = None,
+    document_filename: Optional[str] = None,
 ) -> ExtractedWeekPlan:
     """
-    Sends extracted plan text to LLM (OpenAI-compatible server or Ollama) to parse into structured ExtractedWeekPlan.
+    Parses a plan into a structured ExtractedWeekPlan via the LLM.
+
+    Two modes:
+    - Direct-document mode (settings.ai_direct_document on, document_data
+      given, OpenAI-compatible engine): the uploaded PDF or photo itself is
+      sent to the model as file/image content parts, skipping the OCR /
+      text-extraction stage entirely.
+    - Text mode (default): the extracted document text in `text` is sent.
     """
+    from ukeplan.extractor import build_document_media_parts
+
     system_text = build_system_prompt(family_members=family_members)
-    user_prompt = f"Her er innholdet fra ukeplan-dokumentet:\n---\n{text}\n---\n"
+    instructions = "Ekstraher alle hendelser, nødvendig utstyr ('gear') og lekser/oppgaver ('task') til det påkrevde JSON-formatet."
     if target_person:
-        user_prompt += f"Merk: Brukeren har spesifisert at denne planen tilhører: {target_person}\n"
-    user_prompt += "Ekstraher alle hendelser, nødvendig utstyr ('gear') og lekser/oppgaver ('task') til det påkrevde JSON-formatet."
-    logger.info(f"Target document text length: {len(text)} chars | Target person: {target_person}")
+        instructions = f"Merk: Brukeren har spesifisert at denne planen tilhører: {target_person}\n" + instructions
+
+    user_content: Optional[list] = None
+    if (
+        settings.ai_direct_document
+        and settings.ai_engine == "openai_compatible"
+        and document_data
+        and document_filename
+    ):
+        media_parts = build_document_media_parts(document_data, document_filename)
+        user_content = media_parts + [{"type": "text", "text": "Her er selve ukeplan-dokumentet. Analyser det direkte.\n" + instructions}]
+        logger.info(f"Direct-document mode: sending '{document_filename}' ({len(document_data)} bytes) directly to the LLM | Target person: {target_person}")
+        user_prompt = f"[direct document: {document_filename}]"
+    else:
+        user_prompt = f"Her er innholdet fra ukeplan-dokumentet:\n---\n{text}\n---\n" + instructions
+        logger.info(f"Target document text length: {len(text)} chars | Target person: {target_person}")
 
     should_close_client = False
     if client is None:
@@ -295,7 +328,7 @@ async def parse_plan_text_with_llm(
         should_close_client = True
 
     try:
-        raw_content = await _llm_chat(client, system_text, user_prompt)
+        raw_content = await _llm_chat(client, system_text, user_prompt, user_content=user_content)
         return _finalize_plan(raw_content)
 
     except Exception as e:
