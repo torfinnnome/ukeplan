@@ -120,13 +120,13 @@
         </button>
 
         <!-- Documents Button -->
-        <a href="/documents" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('documents_title')">
+        <a href="{{ base_path }}/documents" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('documents_title')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
           <span class="hidden sm:inline" x-text="t('documents_btn')">Documents</span>
         </a>
 
         <!-- Schedules Button -->
-        <a href="/schedules" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('schedules_title')">
+        <a href="{{ base_path }}/schedules" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-600 transition shrink-0" :title="t('schedules_title')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
           <span class="hidden sm:inline" x-text="t('schedules_btn')">Schedules</span>
         </a>
@@ -742,10 +742,10 @@
   <footer class="bg-slate-800/80 border-t border-slate-700/60 px-4 py-2.5 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-4 flex-wrap">
       <span><span x-text="t('ai_engine_label')"></span>: <strong class="text-slate-300">{{ ai_model }}</strong></span>
-      <a href="/api/calendar.ics" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
+      <a href="{{ base_path }}/api/calendar.ics" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
         <span>📅</span> <span x-text="t('subscribe_apple_cal')">Subscribe in Apple Calendar (.ics)</span>
       </a>
-      <a href="/setup/apple-shortcut" class="text-blue-400 hover:underline flex items-center gap-1">
+      <a href="{{ base_path }}/setup/apple-shortcut" class="text-blue-400 hover:underline flex items-center gap-1">
         <span>📲</span> <span x-text="t('setup_apple_shortcut')">Setup "Share to Week Planner"</span>
       </a>
     </div>
@@ -755,6 +755,9 @@
   </footer>
 
   <script>
+    // Mount prefix when served under a sub-path (APP_ROOT_PATH env); "" at the domain root.
+    const BASE = "{{ base_path }}";
+
     const translations = {
       en: {
         app_title: "Family Week Planner",
@@ -1069,7 +1072,7 @@
           sunDate.setDate(sunDate.getDate() + 6);
           const sun = sunDate.toISOString().split('T')[0];
 
-          let url = `/api/items?start_date=${mon}&end_date=${sun}`;
+          let url = `${BASE}/api/items?start_date=${mon}&end_date=${sun}`;
           if (this.selectedPerson) {
             url += `&person=${encodeURIComponent(this.selectedPerson)}`;
           }
@@ -1111,7 +1114,7 @@
           this.commandSending = true;
           this.commandStatus = this.t('command_sending');
           try {
-            const res = await fetch('/api/commands', {
+            const res = await fetch(`${BASE}/api/commands`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ text })
@@ -1138,7 +1141,7 @@
 
         async toggleComplete(item) {
           try {
-            const res = await fetch(`/api/items/${item.id}/toggle`, { method: 'POST' });
+            const res = await fetch(`${BASE}/api/items/${item.id}/toggle`, { method: 'POST' });
             if (res.ok) {
               item.is_completed = !item.is_completed;
             }
@@ -1173,7 +1176,7 @@
             return;
           }
           try {
-            const res = await fetch(`/api/items/${id}/move`, {
+            const res = await fetch(`${BASE}/api/items/${id}/move`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ date: dateString })
@@ -1230,7 +1233,7 @@
           };
 
           const method = this.editingItemId ? 'PUT' : 'POST';
-          const url = this.editingItemId ? `/api/items/${this.editingItemId}` : '/api/items';
+          const url = this.editingItemId ? `${BASE}/api/items/${this.editingItemId}` : `${BASE}/api/items`;
 
           const res = await fetch(url, {
             method: method,
@@ -1251,7 +1254,7 @@
 
         async deleteItemDirect(id) {
           if (!confirm(this.t('delete_confirm'))) return false;
-          const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+          const res = await fetch(`${BASE}/api/items/${id}`, { method: 'DELETE' });
           if (res.ok) {
             this.loadItems();
             return true;
@@ -1274,7 +1277,7 @@
         },
 
         async clearWeek(week, year) {
-          const res = await fetch(`/api/items?week=${week}&year=${year}`, { method: 'DELETE' });
+          const res = await fetch(`${BASE}/api/items?week=${week}&year=${year}`, { method: 'DELETE' });
           if (res.ok) this.loadItems();
         },
 
@@ -1285,7 +1288,7 @@
         },
 
         async clearAll() {
-          const res = await fetch('/api/items', { method: 'DELETE' });
+          const res = await fetch(`${BASE}/api/items`, { method: 'DELETE' });
           if (res.ok) this.loadItems();
         },
 
@@ -1310,7 +1313,7 @@
           formData.append("channel", "web");
 
           try {
-            const res = await fetch("/api/ingest", {
+            const res = await fetch(`${BASE}/api/ingest`, {
               method: "POST",
               body: formData,
             });
@@ -1351,7 +1354,7 @@
 
         async loadMembers() {
           try {
-            const res = await fetch('/api/members');
+            const res = await fetch(`${BASE}/api/members`);
             if (res.ok) {
               this.familyMembers = await res.json();
             }
@@ -1386,7 +1389,7 @@
             school_class: this.memberForm.school_class ? this.memberForm.school_class.trim() : null,
           };
           const method = this.editingMemberId ? 'PUT' : 'POST';
-          const url = this.editingMemberId ? `/api/members/${this.editingMemberId}` : '/api/members';
+          const url = this.editingMemberId ? `${BASE}/api/members/${this.editingMemberId}` : `${BASE}/api/members`;
 
           try {
             const res = await fetch(url, {
@@ -1407,7 +1410,7 @@
         async deleteMember(m) {
           if (!confirm(this.t('delete_member_confirm'))) return;
           try {
-            const res = await fetch(`/api/members/${m.id}`, { method: 'DELETE' });
+            const res = await fetch(`${BASE}/api/members/${m.id}`, { method: 'DELETE' });
             if (res.ok) {
               await this.loadMembers();
               if (this.editingMemberId === m.id) {

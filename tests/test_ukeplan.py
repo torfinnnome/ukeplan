@@ -1019,3 +1019,61 @@ def test_ingest_direct_document_e2e(tmp_path, monkeypatch):
         for doc in session.exec(select(Document).where(Document.filename == "uke48.pdf")).all():
             session.delete(doc)
         session.commit()
+
+
+# --- Sub-path (reverse-proxy) support: APP_ROOT_PATH / root_path ---
+
+
+def test_root_path_normalization():
+    from ukeplan.config import Settings
+
+    assert Settings(app_root_path="").app_root_path == ""
+    assert Settings(app_root_path="/").app_root_path == ""
+    assert Settings(app_root_path="ukeplan").app_root_path == "/ukeplan"
+    assert Settings(app_root_path="/ukeplan").app_root_path == "/ukeplan"
+    assert Settings(app_root_path="/ukeplan/").app_root_path == "/ukeplan"
+    assert Settings(app_root_path=" /a/b/ ").app_root_path == "/a/b"
+
+
+def test_app_serves_under_root_path_with_stripping_proxy(monkeypatch):
+    """APP_ROOT_PATH=/ukeplan, proxy strips the prefix (Caddy handle_path style):
+    the app serves at / (as seen by the app), templates embed the public prefix,
+    and the absolute ingest URL in the shortcut download includes it."""
+    import importlib
+    import os
+    import ukeplan as ukeplan_pkg
+    import ukeplan.shortcut as sc
+
+    monkeypatch.setattr(sc, "sign_shortcut", lambda plist, name: None)
+    old = os.environ.get("APP_ROOT_PATH")
+    os.environ["APP_ROOT_PATH"] = "/ukeplan"
+    try:
+        importlib.reload(ukeplan_pkg.config)
+        sub_app = importlib.reload(ukeplan_pkg)
+        with TestClient(sub_app.app, root_path="/ukeplan") as client:
+            # API works both stripped (proxy strips: app sees /api/items) and prefixed.
+            r = client.get("/api/items?start_date=2026-01-01&end_date=2026-01-07")
+            assert r.status_code == 200
+            r = client.get("/ukeplan/api/items?start_date=2026-01-01&end_date=2026-01-07")
+            assert r.status_code == 200
+            # Pages render with prefixed links and fetch base.
+            r = client.get("/ukeplan/")
+            assert r.status_code == 200
+            assert 'href="/ukeplan/documents"' in r.text
+            assert 'const BASE = "/ukeplan";' in r.text
+            r = client.get("/ukeplan/setup/apple-shortcut")
+            assert r.status_code == 200
+            assert 'window.location.origin + "/ukeplan"' in r.text
+            # Downloaded shortcut embeds the prefixed absolute ingest URL.
+            sc._cache.clear()
+            r = client.get("/ukeplan/setup/apple-shortcut/download")
+            assert r.status_code == 200
+            assert "http://testserver/ukeplan/api/ingest" in r.text
+            sc._cache.clear()
+    finally:
+        if old is None:
+            os.environ.pop("APP_ROOT_PATH", None)
+        else:
+            os.environ["APP_ROOT_PATH"] = old
+        importlib.reload(ukeplan_pkg.config)
+        importlib.reload(ukeplan_pkg)

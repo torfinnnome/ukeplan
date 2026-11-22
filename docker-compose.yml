@@ -28,6 +28,7 @@ services:
     env_file:
       - .env
     environment:
+      - APP_ROOT_PATH=${APP_ROOT_PATH:-}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/ukeplan.db}
       - AI_ENGINE=${AI_ENGINE:-openai_compatible}
       - AI_BASE_URL=${AI_BASE_URL:-http://llm:8089/v1}

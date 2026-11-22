@@ -11,7 +11,7 @@
 <body class="p-6 max-w-4xl mx-auto font-sans" x-data="shortcutSetupApp()" x-init="init()">
   
   <div class="mb-8 flex items-center justify-between flex-wrap gap-3">
-    <a href="/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
+    <a href="{{ base_path }}/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
       ← <span x-text="t('back_to_planner')">Back to Week Planner</span>
     </a>
     <div class="flex items-center gap-3">
@@ -50,7 +50,7 @@
 
       <div class="bg-emerald-900/25 rounded-xl p-4 border border-emerald-700/50 space-y-3 text-xs text-slate-200">
         <p class="font-semibold text-emerald-300" x-text="t('sec1_download_title')">Enkeltest: last ned ferdig snarvei (ett trykk)</p>
-        <a :href="'/setup/apple-shortcut/download?name=' + encodeURIComponent(shortcutName())"
+        <a :href="'{{ base_path }}/setup/apple-shortcut/download?name=' + encodeURIComponent(shortcutName())"
            class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           <span x-text="t('sec1_download_btn')">Last ned «Del til Ukeplan» (signert)</span>
@@ -294,7 +294,9 @@ IMAP_POLL_INTERVAL_SECONDS=120
     function shortcutSetupApp() {
       return {
         lang: localStorage.getItem('ukeplan_lang') || 'no',
-        origin: window.location.origin,
+        // Mount prefix (APP_ROOT_PATH env) baked into origin so the displayed
+        // and copied ingest / calendar URLs point at the right path.
+        origin: window.location.origin + "{{ base_path }}",
         shortcutName() {
           return this.lang === 'no' ? 'Del til Ukeplan' : 'Share to Week Planner';
         },

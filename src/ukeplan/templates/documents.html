@@ -11,7 +11,7 @@
 <body class="p-6 max-w-6xl mx-auto font-sans" x-data="documentsApp()" x-init="init()">
 
   <div class="mb-8 flex items-center justify-between flex-wrap gap-3">
-    <a href="/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
+    <a href="{{ base_path }}/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
       ← <span x-text="t('back')">Tilbake til Ukeplan</span>
     </a>
     <div class="flex items-center gap-3">
@@ -106,6 +106,8 @@
   </div>
 
   <script>
+    // Mount prefix when served under a sub-path (APP_ROOT_PATH env); "" at the domain root.
+    const BASE = "{{ base_path }}";
     const docTranslations = {
       en: {
         page_title: "Documents – Week Planner",
@@ -168,7 +170,7 @@
         },
 
         fileUrl(d) {
-          return '/api/documents/' + d.id + '/file';
+          return BASE + '/api/documents/' + d.id + '/file';
         },
 
         isImage(d) {
@@ -207,7 +209,7 @@
           if (this.filterPerson) params.set('person', this.filterPerson);
           if (this.filterWeek !== '' && this.filterWeek !== null) params.set('week', String(this.filterWeek));
           try {
-            const res = await fetch('/api/documents?' + params.toString());
+            const res = await fetch(BASE + '/api/documents?' + params.toString());
             this.documents = await res.json();
             this.editPerson = {};
             this.editWeek = {};
@@ -231,7 +233,7 @@
             person: this.editPerson[d.id] || '',
             week_number: this.editWeek[d.id] === '' || this.editWeek[d.id] === null ? null : Number(this.editWeek[d.id])
           };
-          const res = await fetch('/api/documents/' + d.id, {
+          const res = await fetch(BASE + '/api/documents/' + d.id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
@@ -245,7 +247,7 @@
 
         async removeDocument(d) {
           if (!confirm(this.t('confirm_remove') + ': ' + d.filename + '?')) return;
-          const res = await fetch('/api/documents/' + d.id, { method: 'DELETE' });
+          const res = await fetch(BASE + '/api/documents/' + d.id, { method: 'DELETE' });
           if (res.ok) {
             this.documents = this.documents.filter(x => x.id !== d.id);
           } else {

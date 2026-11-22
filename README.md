@@ -93,6 +93,45 @@ AI_DIRECT_DOCUMENT=true
 - When direct mode is on, the OCR stage is not used at all for PDFs/photos, and text-file uploads still go through the normal text path.
 - Ingestion still fails (with the file kept under **Documents** for retry) if the endpoint rejects the direct request — e.g. a non-vision model behind `AI_BASE_URL`.
 
+### Running under a sub-path (reverse proxy)
+
+To serve the app at `https://my-domain.com/ukeplan/` instead of the domain root, set the public prefix with `APP_ROOT_PATH` (env or `.env`):
+
+```ini
+APP_ROOT_PATH=/ukeplan
+```
+
+`APP_ROOT_PATH` is the **public** path the proxy exposes (leading slash, no trailing slash; `ukeplan`, `/ukeplan` and `/ukeplan/` are all accepted and normalized). Leave it unset/empty to serve at the domain root (the default).
+
+With `APP_ROOT_PATH=/ukeplan` every page link, `fetch` API call, the `/api/calendar.ics` subscription URL, the shortcut-download URL and the Apple Shortcut ingest URL are all generated under `/ukeplan/...`, so nothing hits the domain root.
+
+The proxy must forward requests for `/ukeplan/` to the app on port 8000. The app tolerates both common proxy styles — a **stripped** prefix (`/ukeplan/api/items` → app sees `/api/items`) and a **preserved** prefix (app sees `/ukeplan/api/items`) — so just make sure `APP_ROOT_PATH` matches the public prefix. Examples:
+
+Caddy (strips the prefix with `handle_path`):
+
+```caddy
+my-domain.com {
+    handle_path /ukeplan/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+}
+```
+
+nginx — preserve the prefix (no trailing slash on `proxy_pass`) and set the header so `X-Forwarded-*` build correct absolute URLs:
+
+```nginx
+location /ukeplan/ {
+    proxy_pass http://127.0.0.1:8000;   # no trailing slash => prefix preserved
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+}
+```
+
+(For nginx the stripped form `proxy_pass http://127.0.0.1:8000/;` also works, since the app re-applies `APP_ROOT_PATH` when building URLs regardless of which style the proxy uses.)
+
+With docker compose, pass it through: `APP_ROOT_PATH=/ukeplan` in `.env` (the compose file forwards `APP_ROOT_PATH`).
+
 ---
 
 ## Apple Devices Setup

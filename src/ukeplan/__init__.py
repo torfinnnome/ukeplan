@@ -60,7 +60,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     lifespan=lifespan,
+    root_path=settings.app_root_path,
 )
+
+# Value of root_path as seen in request.scope. Starlette's router strips the
+# root_path prefix from the ASGI scope's "path" before matching (routing.py
+# Mount.matches -> root_path += matched_path), so a request for
+# "/ukeplan/api/items" with APP_ROOT_PATH=/ukeplan matches the route "/api/items"
+# and scope["root_path"] == "/ukeplan". The prefix is therefore NOT present in
+# request.url.path inside handlers — only in scope["root_path"] / scope["path].
+
+# Exposed to templates as {{ base_path }} so every link and fetch URL is
+# built under the mount prefix ("" when served at the domain root).
+base_path = settings.app_root_path
 
 # Mount REST API
 app.include_router(api_router)
@@ -77,6 +89,7 @@ def index_page(request: Request):
             "family_members": family_members,
             "app_name": settings.app_name,
             "ai_model": settings.ai_model,
+            "base_path": base_path,
         },
     )
 
@@ -88,6 +101,7 @@ def shortcut_setup_page(request: Request):
         name="shortcut_setup.html",
         context={
             "app_name": settings.app_name,
+            "base_path": base_path,
         },
     )
 
@@ -96,7 +110,7 @@ def shortcut_setup_page(request: Request):
 def apple_shortcut_download(request: Request, name: str | None = None):
     origin = str(request.base_url).rstrip("/")
     clean = (name or "").strip()[:64] or None
-    data, is_signed = generate_shortcut_file(origin + "/api/ingest", name=clean)
+    data, is_signed = generate_shortcut_file(origin + "/api/ingest", name=clean or "Del til Ukeplan")
     filename = shortcut_filename(clean or "Del til Ukeplan", is_signed)
     return Response(
         content=data,
@@ -116,6 +130,7 @@ def documents_page(request: Request):
         context={
             "family_members": family_members,
             "app_name": settings.app_name,
+            "base_path": base_path,
         },
     )
 
@@ -132,6 +147,7 @@ def schedules_page(request: Request):
         context={
             "family_members": family_members,
             "app_name": settings.app_name,
+            "base_path": base_path,
         },
     )
 

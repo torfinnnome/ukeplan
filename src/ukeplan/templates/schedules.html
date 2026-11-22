@@ -11,7 +11,7 @@
 <body class="p-6 max-w-4xl mx-auto font-sans" x-data="schedulesApp()" x-init="init()">
 
   <div class="mb-8 flex items-center justify-between flex-wrap gap-3">
-    <a href="/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
+    <a href="{{ base_path }}/" class="text-blue-400 hover:text-blue-300 text-sm font-semibold flex items-center gap-1">
       ← <span x-text="t('back')">Tilbake til Ukeplan</span>
     </a>
     <div class="flex items-center gap-3">
@@ -96,6 +96,8 @@
   </div>
 
   <script>
+    // Mount prefix when served under a sub-path (APP_ROOT_PATH env); "" at the domain root.
+    const BASE = "{{ base_path }}";
     const scheduleTranslations = {
       en: {
         page_title: "School schedules – Week Planner",
@@ -185,13 +187,13 @@
         },
 
         fileUrl(s) {
-          return '/api/schedules/' + s.id + '/file';
+          return BASE + '/api/schedules/' + s.id + '/file';
         },
 
         async loadSchedules() {
           this.loading = true;
           try {
-            const res = await fetch('/api/schedules');
+            const res = await fetch(BASE + '/api/schedules');
             this.schedules = await res.json();
           } finally {
             this.loading = false;
@@ -213,7 +215,7 @@
           this.uploadError = '';
           this.uploadOk = '';
           try {
-            const res = await fetch('/api/schedules', { method: 'POST', body: form });
+            const res = await fetch(BASE + '/api/schedules', { method: 'POST', body: form });
             if (!res.ok) {
               throw new Error('HTTP ' + res.status);
             }
@@ -230,7 +232,7 @@
 
         async removeSchedule(s) {
           if (!confirm(this.t('confirm_remove') + ': ' + s.filename + '?')) return;
-          const res = await fetch('/api/schedules/' + s.id, { method: 'DELETE' });
+          const res = await fetch(BASE + '/api/schedules/' + s.id, { method: 'DELETE' });
           if (res.ok) {
             this.schedules = this.schedules.filter(x => x.id !== s.id);
           } else {

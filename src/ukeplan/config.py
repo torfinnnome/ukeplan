@@ -2,7 +2,7 @@ import logging
 import os
 import pathlib
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +14,19 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     secret_token: str = "change-me-secret-token"
+    # Sub-path the app is served under when a reverse proxy mounts it below the
+    # domain root (e.g. https://my-domain.com/ukeplan/ -> APP_ROOT_PATH=/ukeplan).
+    # Every page, asset link, API call, iCal URL and shortcut URL is served and
+    # generated under this prefix. Leave empty to serve at the domain root.
+    app_root_path: str = ""
+
+    @field_validator("app_root_path")
+    @classmethod
+    def _normalize_root_path(cls, v: str) -> str:
+        """Accept '', '/', 'ukeplan', '/ukeplan', '/ukeplan/' — store as '' or
+        '/ukeplan' (leading slash, no trailing slash)."""
+        v = "/" + v.strip().strip("/") if v.strip() not in ("", "/") else ""
+        return v
 
     # Database
     database_url: str = "sqlite:///./ukeplan.db"

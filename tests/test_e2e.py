@@ -8,14 +8,21 @@ from ukeplan.db import init_db
 
 @pytest.mark.asyncio
 async def test_end_to_end_calendar_and_web():
-    init_db()  # ensure schema is current (this test bypasses app startup events)
+    init_db()  # ensure schema (this test bypasses app startup events)
+    # Dates must stay inside the .ics feed's retention window (today - 14 days..),
+    # so anchor them to the current date instead of hardcoding them.
+    today = datetime.date.today()
+    d1 = (today + datetime.timedelta(days=2)).isoformat()
+    d2 = (today + datetime.timedelta(days=3)).isoformat()
+    win_start = (today + datetime.timedelta(days=1)).isoformat()
+    win_end = (today + datetime.timedelta(days=4)).isoformat()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         # Create 2 items for different kids
         res1 = await ac.post("/api/items", json={
             "title": "Swimming Class",
             "item_type": "gear",
             "person": "Berit",
-            "date": "2026-09-07",
+            "date": d1,
         })
         assert res1.status_code == 200
         id1 = res1.json()["id"]
@@ -24,7 +31,7 @@ async def test_end_to_end_calendar_and_web():
             "title": "Soccer Match",
             "item_type": "event",
             "person": "Ann",
-            "date": "2026-09-08",
+            "date": d2,
             "start_time": "18:00:00",
             "location": "Pitch A",
         })
@@ -38,7 +45,7 @@ async def test_end_to_end_calendar_and_web():
         assert len(member_list) >= 3
 
         # Fetch items
-        list_res = await ac.get("/api/items?start_date=2026-09-01&end_date=2026-09-15")
+        list_res = await ac.get(f"/api/items?start_date={win_start}&end_date={win_end}")
         assert list_res.status_code == 200
         fetched = list_res.json()
         titles = [item["title"] for item in fetched]
