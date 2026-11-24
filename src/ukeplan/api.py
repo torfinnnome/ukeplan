@@ -454,7 +454,10 @@ def get_document_file(document_id: int, session: Session = Depends(get_session))
     path = document_path(doc.stored_name)
     if not path.exists():
         raise HTTPException(status_code=410, detail="Document file is missing on disk")
-    return FileResponse(path, media_type=doc.mime_type)
+    # Inline Content-Disposition carrying the uploaded name: the browser still
+    # previews the file, but saving it uses the original filename instead of
+    # "file" (the last URL segment of /api/documents/{id}/file).
+    return FileResponse(path, media_type=doc.mime_type, filename=doc.filename, content_disposition_type="inline")
 
 
 @api_router.put("/documents/{document_id}", response_model=Document)
@@ -557,7 +560,7 @@ def get_schedule_file(schedule_id: int, session: Session = Depends(get_session))
     path = document_path(schedule.stored_name)
     if not path.exists():
         raise HTTPException(status_code=410, detail="Schedule file is missing on disk")
-    return FileResponse(path, media_type=schedule.mime_type)
+    return FileResponse(path, media_type=schedule.mime_type, filename=schedule.filename, content_disposition_type="inline")
 
 
 @api_router.delete("/schedules/{schedule_id}")

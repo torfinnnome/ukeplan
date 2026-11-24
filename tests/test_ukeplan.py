@@ -529,6 +529,8 @@ def test_documents_archive_lifecycle(tmp_path, monkeypatch):
         assert f.status_code == 200
         assert f.headers["content-type"].startswith("application/pdf")
         assert f.content[:4] == b"%PDF"
+        # Save-for-browser uses the uploaded name, inline so previews still work
+        assert 'inline; filename="ukeplan-36.pdf"' in f.headers["content-disposition"]
 
         # Re-tag (person + week)
         up2 = client.put(f"/api/documents/{d['id']}", json={"person": "Berit", "week_number": 37})
@@ -609,6 +611,7 @@ def test_schedules_lifecycle(tmp_path, monkeypatch):
         assert f.status_code == 200
         assert f.headers["content-type"].startswith("application/pdf")
         assert f.content[:4] == b"%PDF"
+        assert 'inline; filename="timetable-2027.pdf"' in f.headers["content-disposition"]
 
         # Second child gets their own row
         up3 = client.post(
