@@ -447,7 +447,7 @@ def list_documents(
 
 
 @api_router.get("/documents/{document_id}/file")
-def get_document_file(document_id: int, session: Session = Depends(get_session)):
+def get_document_file(document_id: int, download: bool = False, session: Session = Depends(get_session)):
     doc = session.get(Document, document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -457,7 +457,10 @@ def get_document_file(document_id: int, session: Session = Depends(get_session))
     # Inline Content-Disposition carrying the uploaded name: the browser still
     # previews the file, but saving it uses the original filename instead of
     # "file" (the last URL segment of /api/documents/{id}/file).
-    return FileResponse(path, media_type=doc.mime_type, filename=doc.filename, content_disposition_type="inline")
+    # ?download=1 forces a save instead (iOS Safari ignores <a download>, so
+    # the explicit "Last ned" button asks the server for attachment mode).
+    disposition = "attachment" if download else "inline"
+    return FileResponse(path, media_type=doc.mime_type, filename=doc.filename, content_disposition_type=disposition)
 
 
 @api_router.put("/documents/{document_id}", response_model=Document)
@@ -553,14 +556,15 @@ def list_schedules(
 
 
 @api_router.get("/schedules/{schedule_id}/file")
-def get_schedule_file(schedule_id: int, session: Session = Depends(get_session)):
+def get_schedule_file(schedule_id: int, download: bool = False, session: Session = Depends(get_session)):
     schedule = session.get(SchoolSchedule, schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
     path = document_path(schedule.stored_name)
     if not path.exists():
         raise HTTPException(status_code=410, detail="Schedule file is missing on disk")
-    return FileResponse(path, media_type=schedule.mime_type, filename=schedule.filename, content_disposition_type="inline")
+    return FileResponse(path, media_type=schedule.mime_type, filename=schedule.filename,
+                        content_disposition_type="attachment" if download else "inline")
 
 
 @api_router.delete("/schedules/{schedule_id}")
