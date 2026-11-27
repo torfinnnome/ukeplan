@@ -695,6 +695,35 @@ def test_command_endpoint_adds_recurring_item(monkeypatch):
         client.delete(f"/api/items/{item['id']}")
 
 
+def test_ical_merges_same_activity_for_multiple_children():
+    """Identical items differing only in person export as ONE VEVENT, summary lists all children."""
+    import datetime as dt
+    from ukeplan.models import PlanItem, ItemType
+    from ukeplan.ical import generate_ical_feed
+
+    common = dict(
+        title="Swimming",
+        item_type=ItemType.EVENT,
+        date=dt.date(2026, 9, 9),
+        start_time=dt.time(18, 0),
+        end_time=dt.time(19, 0),
+    )
+    items = [
+        PlanItem(id=10, person="Ann", **common),
+        PlanItem(id=11, person="Berit", **common),
+        PlanItem(id=12, person="Matthew", **common),
+        # different child count/time must stay separate
+        PlanItem(id=13, person="Ann", title="Swimming", item_type=ItemType.EVENT,
+                 date=dt.date(2026, 9, 9), start_time=dt.time(17, 0), end_time=dt.time(18, 0)),
+    ]
+    ical_text = generate_ical_feed(items).decode()
+    assert ical_text.count("SUMMARY:") == 2
+    assert "SUMMARY:\\U0001F4C5 [Ann, Berit, Matthew] Swimming" in ical_text or \
+           "Ann, Berit, Matthew] Swimming" in ical_text.replace("\\", "")
+    assert ical_text.count("UID:ukeplan-10+11+12") == 1
+    assert "UID:ukeplan-13@" in ical_text
+
+
 def test_ical_feed_recurring_rule():
     """Weekly recurring items export as VEVENT + RRULE FREQ=WEEKLY."""
     import datetime as dt
