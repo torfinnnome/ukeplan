@@ -213,132 +213,38 @@
             <!-- Items Container -->
             <div class="flex-1 space-y-2 overflow-y-auto no-scrollbar">
               
-              <!-- Section: Gear -->
-              <template x-if="getItemsForDayAndType(day.dateString, 'gear').length > 0">
-                <div class="space-y-1.5">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1" x-text="'🎒 ' + t('type_gear_heading')"></span>
-                  <template x-for="item in getItemsForDayAndType(day.dateString, 'gear')" :key="item.id">
-                    <div class="group relative bg-amber-950/30 border border-amber-800/40 rounded-lg p-2 text-xs hover:border-amber-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
-                      <div class="flex items-start gap-1.5">
-                        <input type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-amber-500 focus:ring-amber-500">
-                        <div class="flex-1 min-w-0">
-                          <p class="font-medium text-amber-100 text-xs truncate" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
-                          <template x-for="p in item.allPersons" :key="p">
-                            <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-900/60 text-amber-300">
-                              <span x-text="p"></span>
-                              <template x-if="getPersonClass(p)">
-                                <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(p)"></span>
-                              </template>
-                            </span>
-                          </template>
-                        </div>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Section: Events -->
-              <template x-if="getItemsForDayAndType(day.dateString, 'event').length > 0">
-                <div class="space-y-1.5 pt-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1" x-text="'📅 ' + t('type_event_heading')"></span>
-                  <template x-for="item in getItemsForDayAndType(day.dateString, 'event')" :key="item.id">
-                    <div class="group relative bg-blue-950/30 border border-blue-800/40 rounded-lg p-2 text-xs hover:border-blue-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
-                      <button @click.stop="deleteItemDirect(item.id)" class="absolute top-1 right-1 p-0.5 rounded text-slate-500 hover:text-rose-300 hover:bg-slate-700/60 opacity-0 group-hover:opacity-100 transition" :title="t('delete')">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                      </button>
-                      <div class="flex items-baseline justify-between gap-1">
-                        <p class="font-semibold text-blue-100 truncate" x-text="item.title"></p>
-                        <span class="text-[10px] text-blue-300 font-mono" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
-                      </div>
-                      <div class="flex items-center gap-1 mt-1 flex-wrap">
-                        <template x-for="p in item.allPersons" :key="p">
-                          <span class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300">
-                            <span x-text="p"></span>
-                            <template x-if="getPersonClass(p)">
-                              <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(p)"></span>
-                            </template>
-                          </span>
+              <!-- Items grouped by child: name heading once, one compact line per item -->
+              <template x-for="group in getPersonGroups(day.dateString)" :key="group.key">
+                <div>
+                  <div class="flex items-center gap-1.5 flex-wrap pt-1 first:pt-0" x-show="group.persons.length > 0">
+                    <template x-for="p in group.persons" :key="p">
+                      <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-200">
+                        <span x-text="p"></span>
+                        <template x-if="getPersonClass(p)">
+                          <span class="normal-case font-semibold bg-slate-700/70 px-1 rounded text-[9px] text-slate-300 border border-slate-600/50" x-text="getPersonClass(p)"></span>
                         </template>
-                        <template x-if="item.recurring_weekly">
-                          <span class="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-800/60 text-blue-200 border border-blue-600/50" x-text="'↻ ' + t('weekly')"></span>
-                        </template>
-                        <template x-if="item.location">
-                          <span class="text-[10px] text-slate-400 truncate" x-text="'📍 ' + item.location"></span>
-                        </template>
+                      </span>
+                    </template>
+                  </div>
+                  <span x-show="group.persons.length === 0" class="block pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400" x-text="'👪 ' + t('whole_family')"></span>
+                  <div class="space-y-1 mt-0.5">
+                    <template x-for="item in group.items" :key="item.id">
+                      <div class="group relative flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] hover:brightness-125 transition cursor-pointer"
+                           :class="[rowClasses(item), {'opacity-50': draggingItemId === item.id}]" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()">
+                        <button x-show="item.item_type === 'event'" @click.stop="deleteItemDirect(item.id)" class="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-rose-300 hover:bg-slate-700/60 opacity-0 group-hover:opacity-100 transition" :title="t('delete')">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                        <input x-show="item.item_type === 'gear' || item.item_type === 'task'" type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="rounded border-slate-600 text-blue-500 focus:ring-blue-500 shrink-0">
+                        <span x-show="item.item_type === 'middag'" class="shrink-0 text-xs">🍽️</span>
+                        <p class="flex-1 min-w-0 truncate" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
+                        <!-- Items for several children sit in the shared group: name them inline -->
+                        <span class="text-[9px] text-slate-400 shrink-0" x-show="(item.allPersons || []).length > 1" x-text="item.allPersons.join('+')"></span>
+                        <span class="text-[9px] text-slate-400 truncate max-w-[45%]" x-show="item.location" x-text="'📍' + item.location"></span>
+                        <span class="text-[9px] font-semibold text-slate-400" x-show="item.recurring_weekly" x-text="'↻'"></span>
+                        <span class="text-[10px] text-slate-300 font-mono shrink-0" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
                       </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Section: Tasks -->
-              <template x-if="getItemsForDayAndType(day.dateString, 'task').length > 0">
-                <div class="space-y-1.5 pt-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1" x-text="'📝 ' + t('type_task_heading')"></span>
-                  <template x-for="item in getItemsForDayAndType(day.dateString, 'task')" :key="item.id">
-                    <div class="bg-emerald-950/30 border border-emerald-800/40 rounded-lg p-2 text-xs hover:border-emerald-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
-                      <div class="flex items-start gap-1.5">
-                        <input type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500">
-                        <div class="flex-1 min-w-0">
-                          <p class="font-medium text-emerald-100 text-xs truncate" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
-                          <template x-for="p in item.allPersons" :key="p">
-                            <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300">
-                              <span x-text="p"></span>
-                              <template x-if="getPersonClass(p)">
-                                <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(p)"></span>
-                              </template>
-                            </span>
-                          </template>
-                        </div>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Section: Notes -->
-              <template x-if="getItemsForDayAndType(day.dateString, 'note').length > 0">
-                <div class="space-y-1.5 pt-1">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1" x-text="'📌 ' + t('type_note_heading')"></span>
-                  <template x-for="item in getItemsForDayAndType(day.dateString, 'note')" :key="item.id">
-                    <div class="bg-purple-950/30 border border-purple-800/40 rounded-lg p-2 text-xs hover:border-purple-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
-                      <p class="font-medium text-purple-200 text-xs" x-text="item.title"></p>
-                      <template x-for="p in item.allPersons" :key="p">
-                        <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-300">
-                          <span x-text="p"></span>
-                          <template x-if="getPersonClass(p)">
-                            <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(p)"></span>
-                          </template>
-                        </span>
-                      </template>
-                      <p class="text-[11px] text-slate-400 mt-0.5" x-show="item.description" x-text="item.description"></p>
-                    </div>
-                  </template>
-                </div>
-              </template>
-              <!-- Section: Middag (dinner plan; no header, plate icon instead of checkbox) -->
-              <template x-if="getItemsForDayAndType(day.dateString, 'middag').length > 0">
-                <div class="space-y-1.5 pt-1">
-                  <template x-for="item in getItemsForDayAndType(day.dateString, 'middag')" :key="item.id">
-                    <div class="bg-rose-950/30 border border-rose-800/40 rounded-lg p-2 text-xs hover:border-rose-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
-                      <div class="flex items-start gap-1.5">
-                        <span class="text-sm leading-none mt-0.5 shrink-0" x-text="'🍽️'"></span>
-                        <div class="flex-1 min-w-0">
-                          <p class="font-medium text-rose-100 text-xs" x-text="item.title"></p>
-                          <p class="text-[11px] text-rose-200/70 mt-0.5" x-show="item.description" x-text="item.description"></p>
-                          <template x-for="p in item.allPersons" :key="p">
-                            <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-rose-900/60 text-rose-300">
-                              <span x-text="p"></span>
-                              <template x-if="getPersonClass(p)">
-                                <span class="bg-rose-950 px-1 rounded text-[9px] text-rose-200 border border-rose-700/50" x-text="getPersonClass(p)"></span>
-                              </template>
-                            </span>
-                          </template>
-                        </div>
-                      </div>
-                    </div>
-                  </template>
+                    </template>
+                  </div>
                 </div>
               </template>
 
@@ -1103,6 +1009,46 @@
 
         getItemsForDayAndType(dateStr, type) {
           return this.dedupe(this.items.filter(i => this.itemOnDate(i, dateStr) && i.item_type === type));
+        },
+
+        // Compact week-grid layout: group the day's items under one heading per
+        // child instead of a section per item type. Items shared by several
+        // children (or the whole family) go in a trailing 👪 group.
+        getPersonGroups(dateStr) {
+          const items = this.getItemsForDay(dateStr);
+          const byPerson = new Map();
+          const shared = [];
+          for (const it of items) {
+            const persons = it.allPersons || [];
+            if (persons.length === 1) {
+              const p = persons[0];
+              if (!byPerson.has(p)) byPerson.set(p, []);
+              byPerson.get(p).push(it);
+            } else {
+              shared.push(it);
+            }
+          }
+          const groups = [];
+          // Children in the configured family order, then anyone else with items.
+          const ordered = [
+            ...this.familyMembers.filter(m => byPerson.has(m.name)),
+            ...[...byPerson.keys()].filter(n => !this.familyMembers.some(m => m.name === n))
+              .map(n => ({ name: n })),
+          ];
+          for (const m of ordered) groups.push({ key: 'p:' + m.name, persons: [m.name], items: byPerson.get(m.name) });
+          if (shared.length) groups.push({ key: 'shared', persons: [], items: shared });
+          return groups;
+        },
+
+        rowClasses(item) {
+          const map = {
+            gear: 'bg-amber-950/30 text-amber-100',
+            event: 'bg-blue-950/30 text-blue-100',
+            task: 'bg-emerald-950/30 text-emerald-100',
+            note: 'bg-purple-950/30 text-purple-200',
+            middag: 'bg-rose-950/30 text-rose-100',
+          };
+          return map[item.item_type] || 'bg-slate-700/40 text-slate-200';
         },
 
         // The same activity saved once per child must not show N identical cards:
