@@ -1209,13 +1209,22 @@
           } else if (item.date === dateString) {
             return;
           }
+          // Merged card: move every copy (one per child) so the group stays merged.
+          // Restrict to the same day (non-recurring) so same-key items from other
+          // weeks don't get collapsed onto the drop day.
+          const sibs = this.items.filter(i =>
+            this.groupKey(i) === this.groupKey(item) &&
+            (i.date === item.date || (i.recurring_weekly && i.day_of_week)));
+          if (!sibs.length) return;
           try {
-            const res = await fetch(`${BASE}/api/items/${id}/move`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ date: dateString })
-            });
-            if (res.ok) {
+            const results = await Promise.all(sibs.map(s =>
+              fetch(`${BASE}/api/items/${s.id}/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: dateString })
+              }).then(r => r.ok)
+            ));
+            if (results.every(Boolean)) {
               await this.loadItems();
             }
           } catch (e) {
