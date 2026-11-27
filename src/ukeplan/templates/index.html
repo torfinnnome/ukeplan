@@ -169,7 +169,7 @@
       <div class="flex items-center gap-2 text-amber-200 overflow-hidden">
         <span class="text-base shrink-0">🎒</span>
         <span class="font-semibold shrink-0" x-text="t('pack_for_tomorrow') + ':'">Pack for tomorrow:</span>
-        <span class="text-amber-300 font-medium truncate" x-text="tomorrowGear.map(g => (g.person ? '[' + g.person + '] ' : '') + g.title).join(' • ')"></span>
+        <span class="text-amber-300 font-medium truncate" x-text="tomorrowGear.map(g => (g.allPersons && g.allPersons.length ? '[' + g.allPersons.join(', ') + '] ' : '') + g.title).join(' • ')"></span>
       </div>
     </div>
   </div>
@@ -220,14 +220,14 @@
                   <template x-for="item in getItemsForDayAndType(day.dateString, 'gear')" :key="item.id">
                     <div class="group relative bg-amber-950/30 border border-amber-800/40 rounded-lg p-2 text-xs hover:border-amber-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
                       <div class="flex items-start gap-1.5">
-                        <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-amber-500 focus:ring-amber-500">
+                        <input type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-amber-500 focus:ring-amber-500">
                         <div class="flex-1 min-w-0">
-                          <p class="font-medium text-amber-100 text-xs truncate" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
-                          <template x-if="item.person">
+                          <p class="font-medium text-amber-100 text-xs truncate" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
+                          <template x-for="p in item.allPersons" :key="p">
                             <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-900/60 text-amber-300">
-                              <span x-text="item.person"></span>
-                              <template x-if="getPersonClass(item.person)">
-                                <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(item.person)"></span>
+                              <span x-text="p"></span>
+                              <template x-if="getPersonClass(p)">
+                                <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(p)"></span>
                               </template>
                             </span>
                           </template>
@@ -252,11 +252,11 @@
                         <span class="text-[10px] text-blue-300 font-mono" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
                       </div>
                       <div class="flex items-center gap-1 mt-1 flex-wrap">
-                        <template x-if="item.person">
+                        <template x-for="p in item.allPersons" :key="p">
                           <span class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-300">
-                            <span x-text="item.person"></span>
-                            <template x-if="getPersonClass(item.person)">
-                              <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(item.person)"></span>
+                            <span x-text="p"></span>
+                            <template x-if="getPersonClass(p)">
+                              <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(p)"></span>
                             </template>
                           </span>
                         </template>
@@ -279,14 +279,14 @@
                   <template x-for="item in getItemsForDayAndType(day.dateString, 'task')" :key="item.id">
                     <div class="bg-emerald-950/30 border border-emerald-800/40 rounded-lg p-2 text-xs hover:border-emerald-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
                       <div class="flex items-start gap-1.5">
-                        <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500">
+                        <input type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="mt-0.5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500">
                         <div class="flex-1 min-w-0">
-                          <p class="font-medium text-emerald-100 text-xs truncate" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
-                          <template x-if="item.person">
+                          <p class="font-medium text-emerald-100 text-xs truncate" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
+                          <template x-for="p in item.allPersons" :key="p">
                             <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300">
-                              <span x-text="item.person"></span>
-                              <template x-if="getPersonClass(item.person)">
-                                <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(item.person)"></span>
+                              <span x-text="p"></span>
+                              <template x-if="getPersonClass(p)">
+                                <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(p)"></span>
                               </template>
                             </span>
                           </template>
@@ -304,11 +304,11 @@
                   <template x-for="item in getItemsForDayAndType(day.dateString, 'note')" :key="item.id">
                     <div class="bg-purple-950/30 border border-purple-800/40 rounded-lg p-2 text-xs hover:border-purple-700/70 transition cursor-pointer" @click="editItem(item)" draggable="true" @dragstart="onDragStart(item, $event)" @dragend="onDragEnd()" :class="{'opacity-50': draggingItemId === item.id}">
                       <p class="font-medium text-purple-200 text-xs" x-text="item.title"></p>
-                      <template x-if="item.person">
+                      <template x-for="p in item.allPersons" :key="p">
                         <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-300">
-                          <span x-text="item.person"></span>
-                          <template x-if="getPersonClass(item.person)">
-                            <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(item.person)"></span>
+                          <span x-text="p"></span>
+                          <template x-if="getPersonClass(p)">
+                            <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(p)"></span>
                           </template>
                         </span>
                       </template>
@@ -327,11 +327,11 @@
                         <div class="flex-1 min-w-0">
                           <p class="font-medium text-rose-100 text-xs" x-text="item.title"></p>
                           <p class="text-[11px] text-rose-200/70 mt-0.5" x-show="item.description" x-text="item.description"></p>
-                          <template x-if="item.person">
+                          <template x-for="p in item.allPersons" :key="p">
                             <span class="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-rose-900/60 text-rose-300">
-                              <span x-text="item.person"></span>
-                              <template x-if="getPersonClass(item.person)">
-                                <span class="bg-rose-950 px-1 rounded text-[9px] text-rose-200 border border-rose-700/50" x-text="getPersonClass(item.person)"></span>
+                              <span x-text="p"></span>
+                              <template x-if="getPersonClass(p)">
+                                <span class="bg-rose-950 px-1 rounded text-[9px] text-rose-200 border border-rose-700/50" x-text="getPersonClass(p)"></span>
                               </template>
                             </span>
                           </template>
@@ -379,15 +379,15 @@
               <div class="space-y-1.5">
                 <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'gear')" :key="item.id">
                   <div class="bg-amber-950/40 border border-amber-800/50 rounded-xl p-3 text-sm flex items-start gap-3 active:bg-amber-900/40" @click="editItem(item)">
-                    <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-1 w-5 h-5 rounded border-slate-600 text-amber-500 focus:ring-amber-500 shrink-0">
+                    <input type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="mt-1 w-5 h-5 rounded border-slate-600 text-amber-500 focus:ring-amber-500 shrink-0">
                     <div class="flex-1 min-w-0">
-                      <p class="font-medium text-amber-100" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
+                      <p class="font-medium text-amber-100" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
                       <p class="text-xs text-slate-400 mt-0.5" x-show="item.description" x-text="item.description"></p>
-                      <template x-if="item.person">
+                      <template x-for="p in item.allPersons" :key="p">
                         <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-900/70 text-amber-300">
-                          <span x-text="item.person"></span>
-                          <template x-if="getPersonClass(item.person)">
-                            <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(item.person)"></span>
+                          <span x-text="p"></span>
+                          <template x-if="getPersonClass(p)">
+                            <span class="bg-amber-950 px-1 rounded text-[9px] text-amber-200 border border-amber-700/50" x-text="getPersonClass(p)"></span>
                           </template>
                         </span>
                       </template>
@@ -412,11 +412,11 @@
                     </div>
                     <p class="text-xs text-slate-300 mt-0.5" x-show="item.description" x-text="item.description"></p>
                     <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <template x-if="item.person">
+                      <template x-for="p in item.allPersons" :key="p">
                         <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-900/70 text-blue-300">
-                          <span x-text="item.person"></span>
-                          <template x-if="getPersonClass(item.person)">
-                            <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(item.person)"></span>
+                          <span x-text="p"></span>
+                          <template x-if="getPersonClass(p)">
+                            <span class="bg-blue-950 px-1 rounded text-[9px] text-blue-200 border border-blue-700/50" x-text="getPersonClass(p)"></span>
                           </template>
                         </span>
                       </template>
@@ -438,14 +438,14 @@
               <div class="space-y-1.5">
                 <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'task')" :key="item.id">
                   <div class="bg-emerald-950/40 border border-emerald-800/50 rounded-xl p-3 text-sm flex items-start gap-3 active:bg-emerald-900/40" @click="editItem(item)">
-                    <input type="checkbox" :checked="item.is_completed" @click.stop="toggleComplete(item)" class="mt-1 w-5 h-5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500 shrink-0">
+                    <input type="checkbox" :checked="groupComplete(item)" @click.stop="toggleComplete(item)" class="mt-1 w-5 h-5 rounded border-slate-600 text-emerald-500 focus:ring-emerald-500 shrink-0">
                     <div class="flex-1 min-w-0">
-                      <p class="font-medium text-emerald-100" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></p>
-                      <template x-if="item.person">
+                      <p class="font-medium text-emerald-100" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></p>
+                      <template x-for="p in item.allPersons" :key="p">
                         <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-900/70 text-emerald-300">
-                          <span x-text="item.person"></span>
-                          <template x-if="getPersonClass(item.person)">
-                            <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(item.person)"></span>
+                          <span x-text="p"></span>
+                          <template x-if="getPersonClass(p)">
+                            <span class="bg-emerald-950 px-1 rounded text-[9px] text-emerald-200 border border-emerald-700/50" x-text="getPersonClass(p)"></span>
                           </template>
                         </span>
                       </template>
@@ -462,11 +462,11 @@
                 <template x-for="item in getItemsForDayAndType(currentMobileDay.dateString, 'note')" :key="item.id">
                   <div class="bg-purple-950/40 border border-purple-800/50 rounded-xl p-3 text-sm active:bg-purple-900/40" @click="editItem(item)">
                     <p class="font-medium text-purple-200" x-text="item.title"></p>
-                    <template x-if="item.person">
+                    <template x-for="p in item.allPersons" :key="p">
                       <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-900/70 text-purple-300">
-                        <span x-text="item.person"></span>
-                        <template x-if="getPersonClass(item.person)">
-                          <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(item.person)"></span>
+                        <span x-text="p"></span>
+                        <template x-if="getPersonClass(p)">
+                          <span class="bg-purple-950 px-1 rounded text-[9px] text-purple-200 border border-purple-700/50" x-text="getPersonClass(p)"></span>
                         </template>
                       </span>
                     </template>
@@ -485,11 +485,11 @@
                     <div class="flex-1 min-w-0">
                       <p class="font-medium text-rose-100" x-text="item.title"></p>
                       <p class="text-xs text-slate-400 mt-0.5" x-show="item.description" x-text="item.description"></p>
-                      <template x-if="item.person">
+                      <template x-for="p in item.allPersons" :key="p">
                         <span class="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-rose-900/70 text-rose-300">
-                          <span x-text="item.person"></span>
-                          <template x-if="getPersonClass(item.person)">
-                            <span class="bg-rose-950 px-1 rounded text-[9px] text-rose-200 border border-rose-700/50" x-text="getPersonClass(item.person)"></span>
+                          <span x-text="p"></span>
+                          <template x-if="getPersonClass(p)">
+                            <span class="bg-rose-950 px-1 rounded text-[9px] text-rose-200 border border-rose-700/50" x-text="getPersonClass(p)"></span>
                           </template>
                         </span>
                       </template>
@@ -528,15 +528,17 @@
                      @click="editItem(item)">
                   <div class="flex items-center gap-2 truncate">
                     <span x-text="itemTypeEmoji(item)"></span>
-                    <span class="font-medium truncate" :class="{'line-through text-slate-400': item.is_completed}" x-text="item.title"></span>
+                    <span class="font-medium truncate" :class="{'line-through text-slate-400': groupComplete(item)}" x-text="item.title"></span>
                   </div>
                   <div class="flex items-center gap-1 shrink-0">
-                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300" x-show="item.person">
-                      <span x-text="item.person"></span>
-                      <template x-if="getPersonClass(item.person)">
-                        <span class="bg-slate-900 px-1 rounded text-[9px] text-blue-300 border border-slate-700" x-text="getPersonClass(item.person)"></span>
-                      </template>
-                    </span>
+                    <template x-for="p in item.allPersons" :key="p">
+                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                        <span x-text="p"></span>
+                        <template x-if="getPersonClass(p)">
+                          <span class="bg-slate-900 px-1 rounded text-[9px] text-blue-300 border border-slate-700" x-text="getPersonClass(p)"></span>
+                        </template>
+                      </span>
+                    </template>
                     <span class="text-[10px] font-mono text-slate-400" x-show="item.start_time" x-text="formatTime(item.start_time)"></span>
                   </div>
                 </div>
@@ -1037,7 +1039,7 @@
           const tomorrow = new Date();
           tomorrow.setDate(tomorrow.getDate() + 1);
           const iso = tomorrow.toISOString().split('T')[0];
-          return this.items.filter(it => it.date === iso && it.item_type === 'gear' && !it.is_completed);
+          return this.dedupe(this.items.filter(it => it.date === iso && it.item_type === 'gear' && !it.is_completed));
         },
 
         previousWeek() {
@@ -1096,11 +1098,40 @@
         },
 
         getItemsForDay(dateStr) {
-          return this.items.filter(i => this.itemOnDate(i, dateStr));
+          return this.dedupe(this.items.filter(i => this.itemOnDate(i, dateStr)));
         },
 
         getItemsForDayAndType(dateStr, type) {
-          return this.items.filter(i => this.itemOnDate(i, dateStr) && i.item_type === type);
+          return this.dedupe(this.items.filter(i => this.itemOnDate(i, dateStr) && i.item_type === type));
+        },
+
+        // The same activity saved once per child must not show N identical cards:
+        // items differing only in `person` collapse into ONE card listing every
+        // child; checkbox / delete / drag then act on all copies at once.
+        // Mirrors the merge in ukeplan/ical.py for the .ics feed.
+        groupKey(item) {
+          return JSON.stringify([item.item_type, item.title, item.description || '',
+            item.start_time, item.end_time, item.location,
+            item.recurring_weekly, item.day_of_week]);
+        },
+
+        dedupe(items) {
+          const groups = new Map();
+          for (const it of items) {
+            const k = this.groupKey(it);
+            if (!groups.has(k)) { it.sibs = [it]; groups.set(k, it); }
+            else groups.get(k).sibs.push(it);
+          }
+          for (const rep of groups.values()) {
+            const persons = [];
+            for (const s of rep.sibs) if (s.person && !persons.includes(s.person)) persons.push(s.person);
+            rep.allPersons = persons;
+          }
+          return [...groups.values()];
+        },
+
+        groupComplete(item) {
+          return (item.sibs || [item]).every(s => s.is_completed);
         },
 
         itemTypeEmoji(item) {
@@ -1140,11 +1171,14 @@
         },
 
         async toggleComplete(item) {
+          // Merged group: one card = N rows (one per child); toggling applies to all.
+          const sibs = item.sibs || [item];
+          const target = !sibs.every(s => s.is_completed);
           try {
-            const res = await fetch(`${BASE}/api/items/${item.id}/toggle`, { method: 'POST' });
-            if (res.ok) {
-              item.is_completed = !item.is_completed;
-            }
+            await Promise.all(sibs.filter(s => s.is_completed !== target).map(s =>
+              fetch(`${BASE}/api/items/${s.id}/toggle`, { method: 'POST' })
+                .then(res => { if (res.ok) s.is_completed = target; })
+            ));
           } catch (e) {
             console.error(e);
           }
@@ -1247,19 +1281,24 @@
           }
         },
 
+        async deleteItemDirect(id) {
+          return this.deleteGroup(this.items.find(i => i.id === id));
+        },
+
         async deleteItem(id) {
-          const ok = await this.deleteItemDirect(id);
+          const ok = await this.deleteGroup(this.items.find(i => i.id === id));
           if (ok) this.showItemModal = false;
         },
 
-        async deleteItemDirect(id) {
+        // Merged card: deleting removes every copy (one per child) at once.
+        async deleteGroup(item) {
+          if (!item) return false;
           if (!confirm(this.t('delete_confirm'))) return false;
-          const res = await fetch(`${BASE}/api/items/${id}`, { method: 'DELETE' });
-          if (res.ok) {
-            this.loadItems();
-            return true;
-          }
-          return false;
+          const ok = await Promise.all((item.sibs || [item]).map(s =>
+            fetch(`${BASE}/api/items/${s.id}`, { method: 'DELETE' }).then(r => r.ok)
+          ));
+          if (ok.every(Boolean)) this.loadItems();
+          return ok.every(Boolean);
         },
 
         get currentIsoWeek() {
